@@ -1,0 +1,51 @@
+services:
+  backend:
+    image: ghcr.io/7azem512/fitlink-backend:latest
+    container_name: fitlink-backend
+
+    ports:
+      - "8080:8080"
+
+    env_file:
+      - .env
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+    volumes:
+      - uploads:/app/uploads
+
+    networks:
+      - fitlink-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: fitlink-postgres
+
+    env_file:
+      - .env
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    restart: unless-stopped
+
+    networks:
+      - fitlink-network
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  fitlink-network:
+    driver: bridge
