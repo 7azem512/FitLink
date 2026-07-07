@@ -30,8 +30,8 @@ public class AuditEntity {
     private LocalDateTime updatedAt;
 
     @CreatedBy
-    private Long createdBy;
+    private String createdBy;
 
     @LastModifiedBy
-    private Long updatedBy;
+    private String updatedBy;
 }
