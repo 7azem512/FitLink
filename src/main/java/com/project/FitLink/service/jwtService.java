@@ -6,6 +6,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -21,6 +22,7 @@ import java.util.Date;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class jwtService {
     private long accessTokenExpiration = Constants.JWT_ACCESS_TOKEN_EXPIRATION;
@@ -29,6 +31,10 @@ public class jwtService {
     @Value("${application.jwt.secret}")
     private String JWT_SECRET_DEFAULT_VALUE;
 
+    private final TokenCacheService tokenCacheService;
+
+    private SecretKey secretKey;
+
     /**
      * Generates an access token for the current user.
      * @return The generated access token.
@@ -36,7 +42,7 @@ public class jwtService {
     public String generateAccessToken(){
         FitLinkUserDetails user = getCurrentUser();
 
-        SecretKey secretKey = getSecretKey();
+        SecretKey key = getSecretKey();
 
         long id = user.getId();
         String email = user.getEmail();
@@ -54,7 +60,8 @@ public class jwtService {
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
-                .signWith(secretKey)
+                .claim("tokenVersion", user.getTokenVersion())
+                .signWith(key)
                 .compact();
     }
 
@@ -65,7 +72,7 @@ public class jwtService {
     public String generateRefreshToken(){
         FitLinkUserDetails user = getCurrentUser();
 
-        SecretKey secretKey = getSecretKey();
+        SecretKey key = getSecretKey();
 
         long id = user.getId();
         String email = user.getEmail();
@@ -83,7 +90,8 @@ public class jwtService {
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
-                .signWith(secretKey)
+                .claim("tokenVersion", user.getTokenVersion())
+                .signWith(key)
                 .compact();
     }
 
@@ -92,11 +100,14 @@ public class jwtService {
      * @param token The token to validate.
      */
     public void validateTokenForFilter(String token) {
+        if (tokenCacheService.isTokenBlacklisted(token)) {
+            throw new RuntimeException("Token has been revoked");
+        }
 
-        SecretKey secretKey = getSecretKey();
+        SecretKey key = getSecretKey();
 
         Claims claims = Jwts.parser()
-                .verifyWith(secretKey)
+                .verifyWith(key)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -131,8 +142,11 @@ public class jwtService {
      * @return true if the token is valid, false otherwise.
      */
     public boolean isTokenValid(String Token) {
-
         try {
+            if (tokenCacheService.isTokenBlacklisted(Token)) {
+                return false;
+            }
+
             Claims claims = Jwts.parser()
                     .verifyWith(getSecretKey())
                     .build()
@@ -144,7 +158,7 @@ public class jwtService {
             return expiration.after(new Date());
 
         } catch (Exception e) {
-            e.printStackTrace();
+            log.debug("Token validation failed: {}", e.getMessage());
             return false;
         }
     }
@@ -155,8 +169,8 @@ public class jwtService {
      * @return The claims extracted from the token.
      */
     public Claims extractClaims(String token){
-        SecretKey secretKey = getSecretKey();
-        return Jwts.parser().verifyWith(secretKey)
+        SecretKey key = getSecretKey();
+        return Jwts.parser().verifyWith(key)
                 .build().parseSignedClaims(token).getPayload();
     }
 
@@ -165,8 +179,11 @@ public class jwtService {
      * @return The secret key.
      */
     public SecretKey getSecretKey() {
-        String secret = JWT_SECRET_DEFAULT_VALUE;
-        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        if (secretKey == null) {
+            String secret = JWT_SECRET_DEFAULT_VALUE;
+            secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        }
+        return secretKey;
     }
 
     /**
@@ -186,3 +203,4 @@ public class jwtService {
     }
 
 }
+

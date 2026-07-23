@@ -1,35 +1,37 @@
 package com.project.FitLink.service;
 
 
+import com.project.FitLink.auth.FitLinkUserDetails;
 import com.project.FitLink.dto.Auth.LoginRequest;
 import com.project.FitLink.dto.Auth.RefreshResponse;
-import com.project.FitLink.dto.Auth.RegisterRequest;
+import com.project.FitLink.dto.Auth.RegisterResponse;
 import com.project.FitLink.dto.Auth.TokenResponse;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.utils.Constants;
-import com.project.FitLink.utils.enums.Roles;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class authService {
 
     private final jwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+    private final TokenCacheService tokenCacheService;
 
     /**
      * Authenticates a user and generates access and refresh tokens.
@@ -43,14 +45,25 @@ public class authService {
         );
         Authentication auth = authenticationManager.authenticate(authentication);
         if(auth == null || !auth.isAuthenticated()) {
+            log.warn("Login failed for email: {}", loginRequest.getEmail());
             throw new BadCredentialsException("Authentication Failed, Invalid username or password");
         }
+
+        UserEntity user = userRepository.findByEmail(loginRequest.getEmail())
+                .orElseThrow(() -> new BadCredentialsException("User not found"));
+        if (!user.isEmailVerified()) {
+            throw new BadCredentialsException("Email not verified. Please verify your email first");
+        }
+
         SecurityContextHolder.getContext().setAuthentication(auth);
         String accessToken = jwtService.generateAccessToken();
         String refreshToken = jwtService.generateRefreshToken();
 
         String userName = jwtService.extractClaims(accessToken).get("userName", String.class);
         String role = jwtService.extractClaims(accessToken).get("authorities", String.class);
+        
+        log.info("User {} logged in successfully", loginRequest.getEmail());
+        
         return TokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
@@ -59,29 +72,26 @@ public class authService {
                 .build();
     }
 
-    // Todo review register flow
+    @Transactional
+    public RegisterResponse logout() {
+        FitLinkUserDetails currentUser = (FitLinkUserDetails) SecurityContextHolder
+                .getContext().getAuthentication().getPrincipal();
 
-    public TokenResponse RegisterUser(RegisterRequest request) {
+        UserEntity user = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if(userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("User already exists");
-        }
-
-        UserEntity user = UserEntity.builder()
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .userName(request.getUserName())
-                .role(request.getRole() != null ? request.getRole() : Roles.USER)
-                .build();
-
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
+        
+        String token = ((UsernamePasswordAuthenticationToken) SecurityContextHolder
+                .getContext().getAuthentication()).getCredentials().toString();
+        tokenCacheService.addToBlacklist(token, currentUser.getId(), "User logout");
+        
+        SecurityContextHolder.clearContext();
 
-       LoginRequest login = LoginRequest.builder()
-                .email(request.getEmail())
-                .password(request.getPassword())
-                .build();
-
-        return loginProcess(login);
+        log.info("User {} logged out successfully", currentUser.getEmail());
+        
+        return new RegisterResponse("Logged out successfully.");
     }
 
     /**
@@ -92,8 +102,13 @@ public class authService {
      */
     public RefreshResponse refreshToken(String refreshToken) {
         if(!jwtService.isTokenValid(refreshToken)) {
-            throw new RuntimeException("expired token, please login again");
+            throw new RuntimeException("Expired token, please login again");
         }
+        
+        if (tokenCacheService.isTokenBlacklisted(refreshToken)) {
+            throw new RuntimeException("Token has been revoked, please login again");
+        }
+        
         Claims claims = jwtService.extractClaims(refreshToken);
         long id = claims.get("id", Long.class);
         String email = claims.get("email", String.class);
@@ -116,6 +131,8 @@ public class authService {
                 .signWith(jwtService.getSecretKey())
                 .compact();
 
+        log.info("Access token refreshed for user: {}", email);
+        
         return RefreshResponse.builder()
                 .newAccessToken(newAccessToken)
                 .build();

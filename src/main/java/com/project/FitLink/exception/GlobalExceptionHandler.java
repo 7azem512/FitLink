@@ -1,5 +1,6 @@
 package com.project.FitLink.exception;
 
+import com.project.FitLink.exception.exceptions.DuplicateEmailException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import jakarta.persistence.EntityNotFoundException;
@@ -30,7 +31,10 @@ public class GlobalExceptionHandler{
         return new ResponseEntity<>(response, status);
     }
 
-    //Todo make our own exceptions and use it
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateEmail(DuplicateEmailException ex) {
+        return buildErrorResponse("email", ex.getMessage(), HttpStatus.CONFLICT);
+    }
 
     @ExceptionHandler
     public ResponseEntity<ErrorResponse> handleException(MethodArgumentNotValidException exception) {

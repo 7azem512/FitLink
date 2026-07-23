@@ -6,6 +6,7 @@ import com.project.FitLink.auth.CustomAuthenticationProvider;
 import com.project.FitLink.exception.authHandle.CustomAccessDeniedHandler;
 import com.project.FitLink.exception.authHandle.CustomAuthenticationEntryPoint;
 import com.project.FitLink.filters.JwtTokenValidatorFilter;
+import com.project.FitLink.filters.RateLimitingFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -34,6 +35,7 @@ public class SecurityConfig {
     private final CustomAuthenticationEntryPoint customAuthEntryPoint;
     private final CustomAccessDeniedHandler customAccessDeniedHandler;
     private final JwtTokenValidatorFilter jwtTokenValidatorFilter;
+    private final RateLimitingFilter rateLimitingFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http)throws Exception{
@@ -44,16 +46,21 @@ public class SecurityConfig {
                     @Override
                     public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
                         CorsConfiguration config = new CorsConfiguration();
-                        config.setAllowedOriginPatterns(Arrays.asList("*"));
-                        config.setAllowedMethods(Collections.singletonList("*"));
+                        config.setAllowedOriginPatterns(Arrays.asList(
+                                "http://localhost:*",
+                                "http://127.0.0.1:*",
+                                "https://yourdomain.com"
+                        ));
+                        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                         config.setAllowCredentials(true);
-                        config.setAllowedHeaders(Collections.singletonList("*"));
-                        config.setExposedHeaders(Arrays.asList("Authorization"));
+                        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+                        config.setExposedHeaders(Arrays.asList("Authorization", "X-Total-Count"));
                         config.setMaxAge(3600L);
                         return config;
                     }
                 }))
                 .csrf(csrf->csrf.disable())
+                .addFilterBefore(rateLimitingFilter, BasicAuthenticationFilter.class)
                 .addFilterBefore(jwtTokenValidatorFilter, BasicAuthenticationFilter.class)
                 .authorizeHttpRequests(auth->auth
                         // ========== Public APIs ==========
