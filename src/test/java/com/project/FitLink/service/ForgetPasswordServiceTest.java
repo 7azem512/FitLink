@@ -61,7 +61,7 @@ class ForgetPasswordServiceTest {
 
         verify(otpRepository).deleteByUserAndOtpType(user, OtpType.PASSWORD_RESET);
         verify(otpRepository).save(any(OTP.class));
-        verify(emailService).sendOtpEmail(eq("ahmed@example.com"), eq("Ahmed"), anyString());
+        verify(emailService).sendVerifyEmailOtp(eq("ahmed@example.com"), eq("Ahmed"), anyString());
         assertThat(response.getMessage()).contains("If the email is registered");
     }
 
@@ -71,7 +71,7 @@ class ForgetPasswordServiceTest {
 
         RegisterResponse response = service.sendResetOtp("unknown@example.com");
 
-        verify(emailService, never()).sendOtpEmail(any(), any(), any());
+        verify(emailService, never()).sendVerifyEmailOtp(any(), any(), any());
         assertThat(response.getMessage()).contains("If the email is registered");
     }
 

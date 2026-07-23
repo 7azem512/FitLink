@@ -24,9 +24,9 @@ public class EmailService {
     private String sender;
 
     @Async
-    public void sendOtpEmail(String to, String userName, String otpCode) {
+    public void sendVerifyEmailOtp(String to, String userName, String otpCode) {
         try {
-            String template = new ClassPathResource("templates/otp-email.html")
+            String template = new ClassPathResource("templates/verify-email-otp.html")
                     .getContentAsString(StandardCharsets.UTF_8);
             String body = template
                     .replace("{{userName}}", userName)
@@ -36,6 +36,24 @@ public class EmailService {
             log.error("Failed to load email template: {}", e.getMessage(), e);
         }
     }
+
+    @Async
+    public void sendForgotPasswordOtp(String to, String userName, String otpCode) {
+        try {
+            String template = new ClassPathResource("templates/forgot-password-otp.html")
+                    .getContentAsString(StandardCharsets.UTF_8);
+
+            String body = template
+                    .replace("{{userName}}", userName)
+                    .replace("{{otpCode}}", otpCode);
+
+            sendEmail(to, "Reset your FitLink password", body);
+
+        } catch (IOException e) {
+            log.error("Failed to load forgot password template: {}", e.getMessage(), e);
+        }
+    }
+    
 
     @Async
     public void sendEmail(String to, String subject, String htmlBody) {

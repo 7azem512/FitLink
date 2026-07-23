@@ -53,7 +53,7 @@ public class ForgetPasswordService {
                     .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
                     .build());
 
-            emailService.sendOtpEmail(user.getEmail(), user.getUserName(), otpCode);
+            emailService.sendForgotPasswordOtp(user.getEmail(), user.getUserName(), otpCode);
         }
 
         return new RegisterResponse("If the email is registered, a password reset code has been sent.");

@@ -96,7 +96,7 @@ public class OtpService {
                 .otpType(otpType)
                 .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
                 .build());
-        emailService.sendOtpEmail(user.getEmail(), user.getUserName(), otpCode);
+        emailService.sendVerifyEmailOtp(user.getEmail(), user.getUserName(), otpCode);
     }
 
     private OTP findValidOtp(UserEntity user, String otpCode, OtpType otpType) {

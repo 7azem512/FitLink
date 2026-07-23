@@ -62,7 +62,7 @@ public class UserService {
                 .expiresAt(LocalDateTime.now().plusMinutes(10))
                 .build());
 
-        emailService.sendOtpEmail(request.getEmail(), request.getUserName(), otpCode);
+        emailService.sendVerifyEmailOtp(request.getEmail(), request.getUserName(), otpCode);
 
         return new RegisterResponse("Registration successful. Please check your email for the OTP.");
     }
