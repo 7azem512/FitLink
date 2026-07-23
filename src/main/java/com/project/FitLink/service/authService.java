@@ -1,14 +1,18 @@
 package com.project.FitLink.service;
 
-
 import com.project.FitLink.auth.FitLinkUserDetails;
 import com.project.FitLink.dto.Auth.LoginRequest;
 import com.project.FitLink.dto.Auth.RefreshResponse;
 import com.project.FitLink.dto.Auth.RegisterResponse;
+import com.project.FitLink.dto.Auth.SelectRoleRequest;
+import com.project.FitLink.dto.Auth.SelectRoleResponse;
 import com.project.FitLink.dto.Auth.TokenResponse;
 import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.entities.users.UserRole;
 import com.project.FitLink.repository.users.UserRepository;
+import com.project.FitLink.repository.users.UserRoleRepository;
 import com.project.FitLink.utils.Constants;
+import com.project.FitLink.utils.enums.Roles;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -31,7 +38,7 @@ public class authService {
     private final jwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
-    private final TokenCacheService tokenCacheService;
+    private final UserRoleRepository userRoleRepository; // Added UserRoleRepository
 
     /**
      * Authenticates a user and generates access and refresh tokens.
@@ -74,18 +81,19 @@ public class authService {
 
     @Transactional
     public RegisterResponse logout() {
-        FitLinkUserDetails currentUser = (FitLinkUserDetails) SecurityContextHolder
-                .getContext().getAuthentication().getPrincipal();
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        
+        if (!(principal instanceof FitLinkUserDetails)) {
+            throw new RuntimeException("Invalid authentication. User details not found.");
+        }
+        
+        FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
 
         UserEntity user = userRepository.findById(currentUser.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
-        
-        String token = ((UsernamePasswordAuthenticationToken) SecurityContextHolder
-                .getContext().getAuthentication()).getCredentials().toString();
-        tokenCacheService.addToBlacklist(token, currentUser.getId(), "User logout");
         
         SecurityContextHolder.clearContext();
 
@@ -103,10 +111,6 @@ public class authService {
     public RefreshResponse refreshToken(String refreshToken) {
         if(!jwtService.isTokenValid(refreshToken)) {
             throw new RuntimeException("Expired token, please login again");
-        }
-        
-        if (tokenCacheService.isTokenBlacklisted(refreshToken)) {
-            throw new RuntimeException("Token has been revoked, please login again");
         }
         
         Claims claims = jwtService.extractClaims(refreshToken);
@@ -138,5 +142,60 @@ public class authService {
                 .build();
     }
 
-}
+    @Transactional
+    public SelectRoleResponse selectRole(SelectRoleRequest selectRoleRequest) {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
+        if (!(principal instanceof FitLinkUserDetails)) {
+            throw new BadCredentialsException("Invalid authentication. User details not found.");
+        }
+
+        FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
+
+        UserEntity user = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new BadCredentialsException("User not found"));
+
+        // Check if the user's current role is UNASSIGNED
+        Optional<UserRole> unassignedRoleOpt = user.getRoles().stream()
+                .filter(userRole -> userRole.getRoleCode() == Roles.UNASSIGNED)
+                .findFirst();
+
+        if (unassignedRoleOpt.isEmpty()) {
+            throw new BadCredentialsException("Role already assigned. Cannot change role.");
+        }
+
+        // Validate requested role against allowed values (TRAINEE, COACH, GYM)
+        Roles newRole;
+        try {
+            newRole = Roles.valueOf(selectRoleRequest.getRole().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadCredentialsException("Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+        }
+
+        if (newRole == Roles.ADMIN || newRole == Roles.SYSTEM || newRole == Roles.UNASSIGNED || newRole == Roles.USER) {
+            throw new BadCredentialsException("Cannot select this role.");
+        }
+
+        // Update the user's role
+        UserRole unassignedRole = unassignedRoleOpt.get();
+        unassignedRole.setRoleCode(newRole);
+        userRoleRepository.save(unassignedRole);
+
+        // Increment tokenVersion
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        userRepository.save(user);
+
+        // Generate new tokens with the updated role and tokenVersion
+        String newAccessToken = jwtService.generateAccessToken(user); // Assuming jwtService can take UserEntity
+        String newRefreshToken = jwtService.generateRefreshToken(user); // Assuming jwtService can take UserEntity
+
+        log.info("User {} selected role: {}", user.getEmail(), newRole);
+
+        return SelectRoleResponse.builder()
+                .role(newRole.name())
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .message("Role selected successfully.")
+                .build();
+    }
+}

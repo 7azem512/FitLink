@@ -4,9 +4,13 @@ import com.project.FitLink.dto.Auth.RegisterRequest;
 import com.project.FitLink.dto.Auth.RegisterResponse;
 import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.entities.users.UserRole;
 import com.project.FitLink.exception.exceptions.DuplicateEmailException;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.UserRepository;
+import com.project.FitLink.repository.users.UserRoleRepository;
+import com.project.FitLink.utils.enums.OtpType;
+import com.project.FitLink.utils.enums.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -20,6 +24,7 @@ import java.time.LocalDateTime;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final UserRoleRepository userRoleRepository;
     private final OtpRepository otpRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
@@ -42,10 +47,18 @@ public class UserService {
                 .build();
         userRepository.save(user);
 
+        // Assign UNASSIGNED default role to new user
+        UserRole unassignedRole = UserRole.builder()
+                .user(user)
+                .roleCode(Roles.UNASSIGNED)
+                .build();
+        userRoleRepository.save(unassignedRole);
+
         String otpCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
         otpRepository.save(OTP.builder()
                 .otpCode(otpCode)
                 .user(user)
+                .otpType(OtpType.DEFAULT)
                 .expiresAt(LocalDateTime.now().plusMinutes(10))
                 .build());
 

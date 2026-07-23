@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,7 +27,6 @@ public class OtpService {
     private final OtpRepository otpRepository;
     private final UserRepository userRepository;
     private final EmailService emailService;
-    private final PasswordEncoder passwordEncoder;
     private final jwtService jwtService;
 
     private static final int COOLDOWN_MINUTES = 2;
@@ -45,7 +43,7 @@ public class OtpService {
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
-        otpRepository.deleteByUserAndOtpType(user, OtpType.DEFAULT);
+        otpRepository.delete(otp);
 
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
                 .id(user.getId())
@@ -77,32 +75,6 @@ public class OtpService {
         sendOtp(user, otpType);
 
         return new RegisterResponse("OTP resent successfully. Please check your email.");
-    }
-
-    @Transactional
-    public RegisterResponse sendResetOtp(String email) {
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        checkCooldown(user, OtpType.RESET);
-        sendOtp(user, OtpType.RESET);
-
-        return new RegisterResponse("Password reset OTP sent. Please check your email.");
-    }
-
-    @Transactional
-    public RegisterResponse resetPassword(String email, String otpCode, String newPassword) {
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        findValidOtp(user, otpCode, OtpType.RESET);
-
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-
-        otpRepository.deleteByUserAndOtpType(user, OtpType.RESET);
-
-        return new RegisterResponse("Password reset successfully.");
     }
 
     private void checkCooldown(UserEntity user, OtpType otpType) {
