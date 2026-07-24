@@ -24,12 +24,6 @@ public class Home {
         return ResponseEntity.ok(Map.of("message", "Welcome to the Home Page!"));
     }
 
-    @DeleteMapping("/deleteAll")
-    public ResponseEntity<Map<String, Object>> removeAllUsers() {
-        userService.removeAllUsers();
-        return ResponseEntity.ok(Map.of("message", "All users have been removed successfully."));
-    }
-
     // Test controller and will be deleted
 
 }
