@@ -2,10 +2,13 @@ package com.project.FitLink.filters;
 
 import com.project.FitLink.auth.FitLinkUserDetails;
 import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.exception.ErrorCode;
+import com.project.FitLink.exception.ErrorResponseWriter;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.service.jwtService;
 import com.project.FitLink.utils.Constants;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,7 +31,6 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class JwtTokenValidatorFilter extends OncePerRequestFilter {
-
     private final jwtService jwtService;
     private final UserRepository userRepository;
 
@@ -48,14 +50,23 @@ public class JwtTokenValidatorFilter extends OncePerRequestFilter {
             String userName = claims.get("userName", String.class);
             String authorities = claims.get("authorities", String.class);
 
-            UserEntity userEntity = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+            if (userId == null || tokenVersion == null) {
+                rejectInvalidJwt(request, response);
+                return;
+            }
+
+            UserEntity userEntity = userRepository.findById(userId).orElse(null);
+            if (userEntity == null) {
+                rejectInvalidJwt(request, response);
+                return;
+            }
             
             int currentVersion = userEntity.getTokenVersion();
 
             if (tokenVersion == null || tokenVersion != currentVersion) {
-                log.warn("Token version mismatch for user: {}", userId);
-                throw new RuntimeException("Token has been invalidated");
+                log.warn("JWT token version mismatch");
+                rejectInvalidJwt(request, response);
+                return;
             }
 
             jwtService.validateTokenForFilter(accessToken);
@@ -85,14 +96,22 @@ public class JwtTokenValidatorFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
             
             log.debug("Token validated successfully for user: {}", userId);
-        } catch (Exception ex) {
-            log.warn("JWT validation failed: {}", ex.getMessage());
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"Invalid or expired JWT token\"}");
+        } catch (JwtException | IllegalArgumentException ex) {
+            log.warn("JWT validation failed for path={}", request.getRequestURI());
+            rejectInvalidJwt(request, response);
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    private void rejectInvalidJwt(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        SecurityContextHolder.clearContext();
+        ErrorResponseWriter.write(
+                response,
+                ErrorCode.UNAUTHORIZED,
+                "Invalid or expired JWT token.",
+                request.getRequestURI()
+        );
     }
 }
 

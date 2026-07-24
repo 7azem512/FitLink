@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-@Tag(name = "Authentication", description = "Handles registration, login, OTP verification, password reset, token refresh, and logout.")
+@Tag(name = "Authentication", description = "Mobile flow: register, verify the email OTP, select a role, then use the returned access and refresh tokens. Use ErrorResponse.code for client behavior. 401 means authentication is missing or invalid; 403 means the account or requested action is not allowed.")
 public class AuthController {
 
     private final authService authService;
@@ -47,14 +48,30 @@ public class AuthController {
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = RegisterResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"Registration successful. Please check your email for the OTP.\"}"))),
-            @ApiResponse(responseCode = "400", description = "Validation failed (missing fields, invalid email format, weak password, or passwords do not match).",
+            @ApiResponse(responseCode = "400", description = "Validation, malformed request, or password-confirmation failure.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"email\": \"Invalid email format\", \"password\": \"Password must contain at least one letter and one number\"}}"))),
-            @ApiResponse(responseCode = "409", description = "Email is already registered.",
+                            examples = {
+                                    @ExampleObject(name = "VALIDATION_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed\",\"path\":\"/auth/register\",\"errors\":{\"email\":\"Invalid email format\"}}"),
+                                    @ExampleObject(name = "MALFORMED_REQUEST", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"MALFORMED_REQUEST\",\"message\":\"Malformed JSON request or invalid data type\",\"path\":\"/auth/register\"}"),
+                                    @ExampleObject(name = "PASSWORD_MISMATCH", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"PASSWORD_MISMATCH\",\"message\":\"Passwords do not match\",\"path\":\"/auth/register\"}")
+                            })),
+            @ApiResponse(responseCode = "409", description = "Email conflict or database integrity conflict.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"email\": \"Email already exists\"}}")))
+                            examples = {
+                                    @ExampleObject(name = "DUPLICATE_EMAIL", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":409,\"code\":\"DUPLICATE_EMAIL\",\"message\":\"Email already exists\",\"path\":\"/auth/register\"}"),
+                                    @ExampleObject(name = "DATA_INTEGRITY_VIOLATION", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":409,\"code\":\"DATA_INTEGRITY_VIOLATION\",\"message\":\"A data conflict occurred.\",\"path\":\"/auth/register\"}")
+                            })),
+            @ApiResponse(responseCode = "429", description = "Registration request rate limit exceeded. Retry after the Retry-After delay.",
+                    headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying", schema = @Schema(type = "integer", example = "60")),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(type = "object"),
+                            examples = @ExampleObject(name = "RATE_LIMITED", value = "{\"status\":429,\"error\":\"Too Many Requests\",\"message\":\"Too many requests. Please try again later.\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/register\"}")))
     })
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody @Valid RegisterRequest registerRequest) {
@@ -68,21 +85,37 @@ public class AuthController {
     @Operation(
             operationId = "login",
             summary = "Login with email and password",
-            description = "Authenticates the user and returns a JWT access token and refresh token. The account must have a verified email before login is allowed."
+            description = "Authenticates the user and returns an access token and refresh token. Store both only in platform secure storage. The refresh token is not rotated; use it only with /auth/refresh-token. Unknown email and wrong password intentionally return the same BAD_CREDENTIALS response. The account must have a verified email before login is allowed."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Login successful.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = TokenResponse.class),
                             examples = @ExampleObject(value = "{\"accessToken\": \"eyJ...fake_access\", \"refreshToken\": \"eyJ...fake_refresh\", \"userName\": \"John Doe\", \"role\": \"ROLE_USER\"}"))),
-            @ApiResponse(responseCode = "400", description = "Validation failed (blank email or password).",
+            @ApiResponse(responseCode = "400", description = "Validation or malformed request.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"email\": \"Email is required\"}}"))),
-            @ApiResponse(responseCode = "401", description = "Invalid credentials or email not verified.",
+                            examples = {
+                                    @ExampleObject(name = "VALIDATION_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed\",\"path\":\"/auth/login\",\"errors\":{\"email\":\"Email is required\"}}"),
+                                    @ExampleObject(name = "MALFORMED_REQUEST", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"MALFORMED_REQUEST\",\"message\":\"Malformed JSON request or invalid data type\",\"path\":\"/auth/login\"}")
+                            })),
+            @ApiResponse(responseCode = "401", description = "Unknown email and wrong password return the same response.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"Email not verified. Please verify your email first\"}}")))
+                            examples = @ExampleObject(name = "BAD_CREDENTIALS", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":401,\"code\":\"BAD_CREDENTIALS\",\"message\":\"Invalid email or password\",\"path\":\"/auth/login\"}"))),
+            @ApiResponse(responseCode = "403", description = "Credentials are valid but the email is not verified.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "EMAIL_NOT_VERIFIED", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":403,\"code\":\"EMAIL_NOT_VERIFIED\",\"message\":\"Email not verified. Please verify your email first\",\"path\":\"/auth/login\"}"))),
+            @ApiResponse(responseCode = "429", description = "Login request rate limit exceeded. Retry after the Retry-After delay.",
+                    headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying", schema = @Schema(type = "integer", example = "60")),
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(type = "object"),
+                            examples = @ExampleObject(name = "RATE_LIMITED", value = "{\"status\":429,\"error\":\"Too Many Requests\",\"message\":\"Too many requests. Please try again later.\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/login\"}")))
     })
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@RequestBody @Valid LoginRequest loginRequest) {
@@ -96,17 +129,33 @@ public class AuthController {
     @Operation(
             operationId = "verifyOtp",
             summary = "Verify email using OTP",
-            description = "Verifies the 6-digit OTP sent to the user's email after registration. On success, the account is activated and JWT tokens are returned immediately so the user is logged in."
+            description = "Verifies the 6-digit OTP sent to the user's email after registration. The OTP expires after 10 minutes. On success, the account is activated and access and refresh tokens are returned immediately; store them only in platform secure storage."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "OTP verified. Account activated. Tokens returned.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = TokenResponse.class),
                             examples = @ExampleObject(value = "{\"accessToken\": \"eyJ...fake_access\", \"refreshToken\": \"eyJ...fake_refresh\", \"userName\": \"John Doe\", \"role\": \"ROLE_USER\"}"))),
-            @ApiResponse(responseCode = "409", description = "User not found, OTP is invalid, or OTP has expired.",
+            @ApiResponse(responseCode = "400", description = "Validation, malformed request, or invalid OTP.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"Invalid OTP\"}}")))
+                            examples = {
+                                    @ExampleObject(name = "VALIDATION_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed\",\"path\":\"/auth/verify-otp\",\"errors\":{\"email\":\"Invalid email format\"}}"),
+                                    @ExampleObject(name = "MALFORMED_REQUEST", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"MALFORMED_REQUEST\",\"message\":\"Required request parameter is missing\",\"path\":\"/auth/verify-otp\"}"),
+                                    @ExampleObject(name = "INVALID_OTP", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"INVALID_OTP\",\"message\":\"Invalid OTP\",\"path\":\"/auth/verify-otp\"}")
+                            })),
+            @ApiResponse(responseCode = "404", description = "User not found.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "USER_NOT_FOUND", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":404,\"code\":\"USER_NOT_FOUND\",\"message\":\"User not found\",\"path\":\"/auth/verify-otp\"}"))),
+            @ApiResponse(responseCode = "410", description = "OTP has expired.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "OTP_EXPIRED", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":410,\"code\":\"OTP_EXPIRED\",\"message\":\"OTP has expired\",\"path\":\"/auth/verify-otp\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/verify-otp\"}")))
     })
     @PostMapping("/verify-otp")
     public ResponseEntity<TokenResponse> verifyOtp(
@@ -124,17 +173,28 @@ public class AuthController {
     @Operation(
             operationId = "resendOtp",
             summary = "Resend OTP to email",
-            description = "Deletes the previous OTP and sends a new one to the user's email. A 2-minute cooldown is enforced between requests. Use otpType=DEFAULT for email verification."
+            description = "Deletes the previous OTP and sends a new one when the email is registered. The same success response is returned for existing and unknown emails. A 2-minute cooldown is enforced for existing users. On OTP_RESEND_COOLDOWN, do not retry until the cooldown ends. Use otpType=DEFAULT for email verification."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "New OTP sent successfully.",
+            @ApiResponse(responseCode = "200", description = "Request processed without revealing whether the email exists.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = RegisterResponse.class),
                             examples = @ExampleObject(value = "{\"message\": \"OTP resent successfully. Please check your email.\"}"))),
-            @ApiResponse(responseCode = "409", description = "User not found or cooldown period has not elapsed.",
+            @ApiResponse(responseCode = "400", description = "Validation or malformed request.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"Please wait 2 minutes before requesting a new OTP\"}}")))
+                            examples = {
+                                    @ExampleObject(name = "VALIDATION_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed\",\"path\":\"/auth/resend-otp\",\"errors\":{\"email\":\"Invalid email format\"}}"),
+                                    @ExampleObject(name = "MALFORMED_REQUEST", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"MALFORMED_REQUEST\",\"message\":\"Request parameter has an invalid value\",\"path\":\"/auth/resend-otp\"}")
+                            })),
+            @ApiResponse(responseCode = "429", description = "Cooldown period has not elapsed for an existing user.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "OTP_RESEND_COOLDOWN", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":429,\"code\":\"OTP_RESEND_COOLDOWN\",\"message\":\"Please wait 2 minutes before requesting a new OTP\",\"path\":\"/auth/resend-otp\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/resend-otp\"}")))
     })
     @PostMapping("/resend-otp")
     public ResponseEntity<RegisterResponse> resendOtp(
@@ -160,22 +220,34 @@ public class AuthController {
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = SelectRoleResponse.class),
                             examples = @ExampleObject(value = "{\"role\": \"COACH\", \"accessToken\": \"eyJ...new_access\", \"refreshToken\": \"eyJ...new_refresh\", \"message\": \"Role selected successfully.\"}"))),
-            @ApiResponse(responseCode = "400", description = "Validation failed (invalid role value).",
+            @ApiResponse(responseCode = "400", description = "Validation, malformed request, or invalid role value.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"role\": \"Invalid role. Allowed values are TRAINEE, COACH, GYM.\"}}"))),
+                            examples = {
+                                    @ExampleObject(name = "VALIDATION_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"VALIDATION_ERROR\",\"message\":\"Request validation failed\",\"path\":\"/auth/select-role\",\"errors\":{\"role\":\"Invalid role. Allowed values are TRAINEE, COACH, GYM.\"}}"),
+                                    @ExampleObject(name = "MALFORMED_REQUEST", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"MALFORMED_REQUEST\",\"message\":\"Malformed JSON request or invalid data type\",\"path\":\"/auth/select-role\"}"),
+                                    @ExampleObject(name = "INVALID_ROLE", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"INVALID_ROLE\",\"message\":\"Invalid role specified. Allowed values are TRAINEE, COACH, GYM.\",\"path\":\"/auth/select-role\"}")
+                            })),
             @ApiResponse(responseCode = "401", description = "Unauthorized: Missing, invalid, or expired Bearer token.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"Unauthorized\"}}"))),
-            @ApiResponse(responseCode = "403", description = "Forbidden: User already has a role assigned or tried to select an unsupported role.",
+                            examples = @ExampleObject(name = "UNAUTHORIZED", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":401,\"code\":\"UNAUTHORIZED\",\"message\":\"Authentication is required.\",\"path\":\"/auth/select-role\"}"))),
+            @ApiResponse(responseCode = "403", description = "The requested role is not allowed.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"Role already assigned or invalid role selection.\"}}"))),
+                            examples = @ExampleObject(name = "ROLE_NOT_ALLOWED", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":403,\"code\":\"ROLE_NOT_ALLOWED\",\"message\":\"Cannot select this role.\",\"path\":\"/auth/select-role\"}"))),
             @ApiResponse(responseCode = "404", description = "User not found.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"User not found.\"}}")))
+                            examples = @ExampleObject(name = "USER_NOT_FOUND", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":404,\"code\":\"USER_NOT_FOUND\",\"message\":\"User not found\",\"path\":\"/auth/select-role\"}"))),
+            @ApiResponse(responseCode = "409", description = "A role has already been assigned.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "ROLE_ALREADY_ASSIGNED", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":409,\"code\":\"ROLE_ALREADY_ASSIGNED\",\"message\":\"Role already assigned. Cannot change role.\",\"path\":\"/auth/select-role\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/select-role\"}")))
     })
     @PatchMapping("/select-role")
     public ResponseEntity<SelectRoleResponse> selectRole(@RequestBody @Valid SelectRoleRequest selectRoleRequest) {
@@ -199,7 +271,19 @@ public class AuthController {
                             examples = @ExampleObject(value = "{\"message\": \"Logged out successfully.\"}"))),
             @ApiResponse(responseCode = "401", description = "Missing, invalid, or expired Bearer token.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                            examples = @ExampleObject(value = "{\"error\": \"Invalid or expired JWT token\"}")))
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "UNAUTHORIZED", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":401,\"code\":\"UNAUTHORIZED\",\"message\":\"Authentication is required.\",\"path\":\"/auth/logout\"}"),
+                                    @ExampleObject(name = "INVALID_JWT", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":401,\"code\":\"UNAUTHORIZED\",\"message\":\"Invalid or expired JWT token.\",\"path\":\"/auth/logout\"}")
+                            })),
+            @ApiResponse(responseCode = "404", description = "Authenticated user no longer exists.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "USER_NOT_FOUND", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":404,\"code\":\"USER_NOT_FOUND\",\"message\":\"User not found\",\"path\":\"/auth/logout\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/logout\"}")))
     })
     @PostMapping("/logout")
     public ResponseEntity<RegisterResponse> logout() {
@@ -213,17 +297,25 @@ public class AuthController {
     @Operation(
             operationId = "refreshToken",
             summary = "Refresh the access token",
-            description = "Accepts a valid refresh token and returns a new access token. The refresh token itself is not rotated. If the token is expired or the user no longer exists, an error is returned."
+            description = "Accepts a valid refresh token and returns a new access token. The refresh token itself is not rotated. Store the refresh token only in platform secure storage. On INVALID_REFRESH_TOKEN, clear local credentials and return the user to login."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "New access token generated.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = RefreshResponse.class),
                             examples = @ExampleObject(value = "{\"newAccessToken\": \"eyJ...fake_new_access_token\"}"))),
-            @ApiResponse(responseCode = "409", description = "Refresh token is expired, invalid, or user no longer exists.",
+            @ApiResponse(responseCode = "400", description = "Malformed request.",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                             schema = @Schema(implementation = ErrorResponse.class),
-                            examples = @ExampleObject(value = "{\"errorMessages\": {\"error\": \"Expired token, please login again\"}}")))
+                            examples = @ExampleObject(name = "MALFORMED_REQUEST", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":400,\"code\":\"MALFORMED_REQUEST\",\"message\":\"Malformed JSON request or invalid data type\",\"path\":\"/auth/refresh-token\"}"))),
+            @ApiResponse(responseCode = "401", description = "Refresh token is expired, invalid, or no longer associated with a user.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INVALID_REFRESH_TOKEN", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":401,\"code\":\"INVALID_REFRESH_TOKEN\",\"message\":\"Expired token, please login again\",\"path\":\"/auth/refresh-token\"}"))),
+            @ApiResponse(responseCode = "500", description = "Unexpected server error.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = ErrorResponse.class),
+                            examples = @ExampleObject(name = "INTERNAL_ERROR", value = "{\"timestamp\":\"2026-07-24T01:30:00\",\"status\":500,\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\",\"path\":\"/auth/refresh-token\"}")))
     })
     @PostMapping("/refresh-token")
     public ResponseEntity<RefreshResponse> refreshToken(@RequestBody @Valid RefreshRequest refreshRequest) {

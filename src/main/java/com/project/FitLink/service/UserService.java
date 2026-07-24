@@ -5,7 +5,8 @@ import com.project.FitLink.dto.Auth.RegisterResponse;
 import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.entities.users.UserRole;
-import com.project.FitLink.exception.exceptions.DuplicateEmailException;
+import com.project.FitLink.exception.AppException;
+import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
@@ -32,10 +33,10 @@ public class UserService {
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateEmailException();
+            throw new AppException(ErrorCode.DUPLICATE_EMAIL, "Email already exists");
         }
         if (!request.getPassword().equals(request.getConfirmPassword())) {
-            throw new RuntimeException("Passwords do not match");
+            throw new AppException(ErrorCode.PASSWORD_MISMATCH, "Passwords do not match");
         }
 
         UserEntity user = UserEntity.builder()

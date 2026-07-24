@@ -1,66 +1,96 @@
 package com.project.FitLink.exception;
 
-import com.project.FitLink.exception.exceptions.DuplicateEmailException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler{
 
-    private ResponseEntity<ErrorResponse> buildErrorResponse(String key, String message, HttpStatus status) {
-        ErrorResponse response = new ErrorResponse();
-        response.addError(key, message);
-        return new ResponseEntity<>(response, status);
+    private ResponseEntity<ErrorResponse> buildErrorResponse(
+            ErrorCode errorCode,
+            String message,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, message, request.getRequestURI()));
     }
 
-    @ExceptionHandler(DuplicateEmailException.class)
-    public ResponseEntity<ErrorResponse> handleDuplicateEmail(DuplicateEmailException ex) {
-        return buildErrorResponse("email", ex.getMessage(), HttpStatus.CONFLICT);
+    private ResponseEntity<ErrorResponse> buildErrorResponse(
+            ErrorCode errorCode,
+            String message,
+            Map<String, String> errors,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, message, request.getRequestURI(), errors));
     }
 
-    @ExceptionHandler
-    public ResponseEntity<ErrorResponse> handleException(MethodArgumentNotValidException exception) {
-        ErrorResponse response = new ErrorResponse();
+    private void logExpected(ErrorCode errorCode, HttpServletRequest request) {
+        log.warn("Handled error code={} path={}", errorCode, request.getRequestURI());
+    }
+
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ErrorResponse> handleAppException(
+            AppException exception,
+            HttpServletRequest request
+    ) {
+        logExpected(exception.getErrorCode(), request);
+        return buildErrorResponse(exception.getErrorCode(), exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ErrorResponse> handleValidationException(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new LinkedHashMap<>();
         List<FieldError> fieldErrors = exception.getBindingResult().getFieldErrors();
 
         for(FieldError fieldError : fieldErrors){
-            response.addError(fieldError.getField(),fieldError.getDefaultMessage());
+            errors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
         exception.getBindingResult().getGlobalErrors().forEach(error -> {
-            response.addError(error.getObjectName(), error.getDefaultMessage());
+            errors.put(error.getObjectName(), error.getDefaultMessage());
         });
 
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        logExpected(ErrorCode.VALIDATION_ERROR, request);
+        return buildErrorResponse(ErrorCode.VALIDATION_ERROR, "Request validation failed", errors, request);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ErrorResponse> handleJsonParseException(HttpMessageNotReadableException ex) {
-        ErrorResponse response = new ErrorResponse();
+    public ResponseEntity<ErrorResponse> handleJsonParseException(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new LinkedHashMap<>();
 
         if (ex.getCause() instanceof InvalidFormatException) {
             InvalidFormatException ifx = (InvalidFormatException) ex.getCause();
 
             if (ifx.getTargetType() != null && ifx.getTargetType().isEnum()) {
                 String fieldName = ifx.getPath().get(ifx.getPath().size() - 1).getFieldName();
-                String rejectedValue = ifx.getValue().toString();
+                String rejectedValue = String.valueOf(ifx.getValue());
                 String allowedValues = Arrays.toString(ifx.getTargetType().getEnumConstants());
 
                 String errorMessage;
@@ -69,123 +99,123 @@ public class GlobalExceptionHandler{
                 } else {
                     errorMessage = String.format("Invalid value '%s'. Accepted values are: %s", rejectedValue, allowedValues);
                 }
-                response.addError(fieldName, errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                errors.put(fieldName, errorMessage);
+                logExpected(ErrorCode.MALFORMED_REQUEST, request);
+                return buildErrorResponse(
+                        ErrorCode.MALFORMED_REQUEST,
+                        "Malformed JSON request or invalid data type",
+                        errors,
+                        request
+                );
             }
         }
 
-
-        response.addError("error", "Malformed JSON request or invalid data type");
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        logExpected(ErrorCode.MALFORMED_REQUEST, request);
+        return buildErrorResponse(ErrorCode.MALFORMED_REQUEST, "Malformed JSON request or invalid data type", request);
     }
 
     @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<?> handleEntityNotFound(
-            EntityNotFoundException ex
+    public ResponseEntity<ErrorResponse> handleEntityNotFound(
+            EntityNotFoundException ex,
+            HttpServletRequest request
     ) {
-
-        return buildErrorResponse("error","entity not found maybe id is invalid bro :)", HttpStatus.NOT_FOUND);
+        logExpected(ErrorCode.NOT_FOUND, request);
+        return buildErrorResponse(ErrorCode.NOT_FOUND, "Entity not found", request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(
-            DataIntegrityViolationException ex
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex,
+            HttpServletRequest request
     ) {
-
-        Map<String, Object> response = new HashMap<>();
-
-        String message = ex.getMostSpecificCause().getMessage();
-
-        // Duplicate value
-        if (message.contains("Duplicate entry")) {
-
-            Pattern pattern = Pattern.compile("for key '(.+?)'");
-            Matcher matcher = pattern.matcher(message);
-
-            String field = "field";
-            if (matcher.find()) {
-                field = matcher.group(1);
-            }
-
-            response.put("error", field + " already exists.");
-        }
-
-        // Data too long
-        else if (message.contains("Data too long")) {
-
-            Pattern pattern = Pattern.compile("column '(.+?)'");
-            Matcher matcher = pattern.matcher(message);
-
-            String field = "field";
-            if (matcher.find()) {
-                field = matcher.group(1);
-            }
-
-            response.put("error", field + " exceeds the allowed length.");
-        }
-
-        // Cannot be null
-        else if (message.contains("cannot be null")) {
-
-            Pattern pattern = Pattern.compile("column '(.+?)'");
-            Matcher matcher = pattern.matcher(message);
-
-            String field = "field";
-            if (matcher.find()) {
-                field = matcher.group(1);
-            }
-
-            response.put("error", field + " is required.");
-        }
-
-        // Foreign key
-        else if (message.contains("foreign key")) {
-
-            response.put("error", "Invalid related data provided.");
-        }
-
-        else {
-            response.put("error", "Database constraint violation occurred.");
-        }
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        logExpected(ErrorCode.DATA_INTEGRITY_VIOLATION, request);
+        return buildErrorResponse(
+                ErrorCode.DATA_INTEGRITY_VIOLATION,
+                "A data conflict occurred.",
+                request
+        );
     }
 
     @ExceptionHandler(UsernameNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidUserName(UsernameNotFoundException ex) {
-        return buildErrorResponse("error", ex.getMessage(), HttpStatus.NOT_FOUND);
+    public ResponseEntity<ErrorResponse> handleInvalidUserName(
+            UsernameNotFoundException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.USER_NOT_FOUND, request);
+        return buildErrorResponse(ErrorCode.USER_NOT_FOUND, "User not found", request);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleBadCredintials(BadCredentialsException ex) {
-        return buildErrorResponse("error", ex.getMessage(), HttpStatus.UNAUTHORIZED);
+    public ResponseEntity<ErrorResponse> handleBadCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.BAD_CREDENTIALS, request);
+        return buildErrorResponse(ErrorCode.BAD_CREDENTIALS, "Invalid email or password", request);
     }
 
     @ExceptionHandler(UnrecognizedPropertyException.class)
-    public ResponseEntity<Map<String, Object>> handleUnknownField(
-            UnrecognizedPropertyException ex) {
-
-        Map<String, Object> response = new HashMap<>();
-
-        response.put("error", "INVALID_FIELD");
-        response.put("message",
-                "Field '" + ex.getPropertyName() + "' is not allowed");
-
-        response.put("invalidField", ex.getPropertyName());
-
-        response.put(
-                "allowedFields",
-                ex.getKnownPropertyIds()
+    public ResponseEntity<ErrorResponse> handleUnknownField(
+            UnrecognizedPropertyException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.MALFORMED_REQUEST, request);
+        return buildErrorResponse(
+                ErrorCode.MALFORMED_REQUEST,
+                "Field '" + ex.getPropertyName() + "' is not allowed",
+                Map.of(ex.getPropertyName(), "Field is not allowed"),
+                request
         );
-
-        return ResponseEntity.badRequest().body(response);
     }
 
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        ex.getConstraintViolations().forEach(violation ->
+                errors.put(violation.getPropertyPath().toString(), violation.getMessage())
+        );
 
-    @ExceptionHandler
-    public ResponseEntity<ErrorResponse> handleException(Exception exception){
-        return buildErrorResponse("error", exception.getMessage(), HttpStatus.CONFLICT);
+        logExpected(ErrorCode.VALIDATION_ERROR, request);
+        return buildErrorResponse(ErrorCode.VALIDATION_ERROR, "Request validation failed", errors, request);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestParameter(
+            MissingServletRequestParameterException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.MALFORMED_REQUEST, request);
+        return buildErrorResponse(
+                ErrorCode.MALFORMED_REQUEST,
+                "Required request parameter is missing",
+                Map.of(ex.getParameterName(), "Required parameter is missing"),
+                request
+        );
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.MALFORMED_REQUEST, request);
+        return buildErrorResponse(
+                ErrorCode.MALFORMED_REQUEST,
+                "Request parameter has an invalid value",
+                Map.of(ex.getName(), "Invalid value"),
+                request
+        );
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> handleException(
+            Exception exception,
+            HttpServletRequest request
+    ) {
+        log.error("Unexpected error while handling path={}", request.getRequestURI(), exception);
+        return buildErrorResponse(ErrorCode.INTERNAL_ERROR, "An unexpected error occurred", request);
     }
 }

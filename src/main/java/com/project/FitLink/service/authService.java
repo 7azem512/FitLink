@@ -9,6 +9,8 @@ import com.project.FitLink.dto.Auth.SelectRoleResponse;
 import com.project.FitLink.dto.Auth.TokenResponse;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.entities.users.UserRole;
+import com.project.FitLink.exception.AppException;
+import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
 import com.project.FitLink.utils.Constants;
@@ -22,6 +24,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,22 +47,29 @@ public class authService {
      * Authenticates a user and generates access and refresh tokens.
      * @param loginRequest The login request containing email and password.
      * @return A TokenResponse containing the access and refresh tokens.
-     * @throws BadCredentialsException If authentication fails due to invalid credentials.
+     * @throws AppException If authentication fails due to invalid credentials.
      */
     public TokenResponse loginProcess(LoginRequest loginRequest) {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 loginRequest.getEmail(), loginRequest.getPassword()
         );
-        Authentication auth = authenticationManager.authenticate(authentication);
+        Authentication auth;
+        try {
+            auth = authenticationManager.authenticate(authentication);
+        } catch (BadCredentialsException | UsernameNotFoundException exception) {
+            log.warn("Login failed");
+            throw new AppException(ErrorCode.BAD_CREDENTIALS, "Invalid email or password");
+        }
+
         if(auth == null || !auth.isAuthenticated()) {
-            log.warn("Login failed for email: {}", loginRequest.getEmail());
-            throw new BadCredentialsException("Authentication Failed, Invalid username or password");
+            log.warn("Login failed");
+            throw new AppException(ErrorCode.BAD_CREDENTIALS, "Invalid email or password");
         }
 
         UserEntity user = userRepository.findByEmail(loginRequest.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.BAD_CREDENTIALS, "Invalid email or password"));
         if (!user.isEmailVerified()) {
-            throw new BadCredentialsException("Email not verified. Please verify your email first");
+            throw new AppException(ErrorCode.EMAIL_NOT_VERIFIED, "Email not verified. Please verify your email first");
         }
 
         SecurityContextHolder.getContext().setAuthentication(auth);
@@ -84,13 +94,13 @@ public class authService {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         
         if (!(principal instanceof FitLinkUserDetails)) {
-            throw new RuntimeException("Invalid authentication. User details not found.");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Invalid authentication. User details not found.");
         }
         
         FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
 
         UserEntity user = userRepository.findById(currentUser.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
         user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
@@ -106,11 +116,11 @@ public class authService {
      * Refreshes the access token using a valid refresh token.
      * @param refreshToken The refresh token to use for refreshing the access token.
      * @return A RefreshResponse containing the new access token.
-     * @throws RuntimeException If the refresh token is invalid or expired.
+     * @throws AppException If the refresh token is invalid or expired.
      */
     public RefreshResponse refreshToken(String refreshToken) {
         if(!jwtService.isTokenValid(refreshToken)) {
-            throw new RuntimeException("Expired token, please login again");
+            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Expired token, please login again");
         }
         
         Claims claims = jwtService.extractClaims(refreshToken);
@@ -120,7 +130,7 @@ public class authService {
         String role = claims.get("authorities", String.class);
 
         if(!userRepository.existsByEmail(email)){
-            throw new RuntimeException("User not found, please login again");
+            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User not found, please login again");
         }
 
         String newAccessToken = Jwts.builder()
@@ -147,13 +157,13 @@ public class authService {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
         if (!(principal instanceof FitLinkUserDetails)) {
-            throw new BadCredentialsException("Invalid authentication. User details not found.");
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Invalid authentication. User details not found.");
         }
 
         FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
 
         UserEntity user = userRepository.findById(currentUser.getId())
-                .orElseThrow(() -> new BadCredentialsException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
         // Check if the user's current role is UNASSIGNED
         Optional<UserRole> unassignedRoleOpt = user.getRoles().stream()
@@ -161,7 +171,7 @@ public class authService {
                 .findFirst();
 
         if (unassignedRoleOpt.isEmpty()) {
-            throw new BadCredentialsException("Role already assigned. Cannot change role.");
+            throw new AppException(ErrorCode.ROLE_ALREADY_ASSIGNED, "Role already assigned. Cannot change role.");
         }
 
         // Validate requested role against allowed values (TRAINEE, COACH, GYM)
@@ -169,11 +179,11 @@ public class authService {
         try {
             newRole = Roles.valueOf(selectRoleRequest.getRole().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new BadCredentialsException("Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+            throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
         }
 
         if (newRole == Roles.ADMIN || newRole == Roles.SYSTEM || newRole == Roles.UNASSIGNED || newRole == Roles.USER) {
-            throw new BadCredentialsException("Cannot select this role.");
+            throw new AppException(ErrorCode.ROLE_NOT_ALLOWED, "Cannot select this role.");
         }
 
         // Update the user's role

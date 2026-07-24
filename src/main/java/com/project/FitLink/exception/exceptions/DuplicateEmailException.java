@@ -1,7 +1,10 @@
 package com.project.FitLink.exception.exceptions;
 
-public class DuplicateEmailException extends RuntimeException {
+import com.project.FitLink.exception.AppException;
+import com.project.FitLink.exception.ErrorCode;
+
+public class DuplicateEmailException extends AppException {
     public DuplicateEmailException() {
-        super("Email already exists");
+        super(ErrorCode.DUPLICATE_EMAIL, "Email already exists");
     }
 }

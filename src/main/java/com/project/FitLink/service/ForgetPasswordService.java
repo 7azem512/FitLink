@@ -5,6 +5,8 @@ import com.project.FitLink.dto.Auth.VerifyResetOtpResponse;
 import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.PasswordResetToken;
 import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.exception.AppException;
+import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.PasswordResetTokenRepository;
 import com.project.FitLink.repository.users.UserRepository;
@@ -65,14 +67,14 @@ public class ForgetPasswordService {
     public VerifyResetOtpResponse verifyOtp(String email, String otpCode) {
         String normalized = email.trim().toLowerCase();
         UserEntity user = userRepository.findByEmail(normalized)
-                .orElseThrow(() -> new RuntimeException("Invalid OTP"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_OTP, "Invalid OTP"));
 
         OTP otp = otpRepository.findByUserAndOtpCodeAndOtpType(user, otpCode, OtpType.PASSWORD_RESET)
-                .orElseThrow(() -> new RuntimeException("Invalid OTP"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_OTP, "Invalid OTP"));
 
         if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
             otpRepository.delete(otp);
-            throw new RuntimeException("OTP has expired");
+            throw new AppException(ErrorCode.OTP_EXPIRED, "OTP has expired");
         }
 
         otpRepository.delete(otp);
@@ -97,20 +99,20 @@ public class ForgetPasswordService {
     @Transactional
     public RegisterResponse resetPassword(String rawToken, String newPassword, String confirmPassword) {
         if (!newPassword.equals(confirmPassword)) {
-            throw new RuntimeException("Passwords do not match");
+            throw new AppException(ErrorCode.PASSWORD_MISMATCH, "Passwords do not match");
         }
 
         String tokenHash = sha256(rawToken);
         PasswordResetToken resetToken = resetTokenRepository.findByTokenHash(tokenHash)
-                .orElseThrow(() -> new RuntimeException("Invalid or expired reset token"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_RESET_TOKEN, "Invalid or expired reset token"));
 
         if (resetToken.isExpired()) {
             resetTokenRepository.delete(resetToken);
-            throw new RuntimeException("Reset token has expired");
+            throw new AppException(ErrorCode.RESET_TOKEN_EXPIRED, "Reset token has expired");
         }
 
         if (resetToken.isUsed()) {
-            throw new RuntimeException("Reset token has already been used");
+            throw new AppException(ErrorCode.RESET_TOKEN_USED, "Reset token has already been used");
         }
 
         UserEntity user = resetToken.getUser();

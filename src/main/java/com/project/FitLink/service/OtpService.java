@@ -5,6 +5,8 @@ import com.project.FitLink.dto.Auth.RegisterResponse;
 import com.project.FitLink.dto.Auth.TokenResponse;
 import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.exception.AppException;
+import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.utils.enums.OtpType;
@@ -35,7 +37,7 @@ public class OtpService {
     @Transactional
     public TokenResponse verifyEmail(String email, String otpCode) {
         UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
         OTP otp = findValidOtp(user, otpCode, OtpType.DEFAULT);
 
@@ -68,8 +70,11 @@ public class OtpService {
 
     @Transactional
     public RegisterResponse resend(String email, OtpType otpType) {
-        UserEntity user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        UserEntity user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            return new RegisterResponse("OTP resent successfully. Please check your email.");
+        }
 
         checkCooldown(user, otpType);
         sendOtp(user, otpType);
@@ -82,7 +87,10 @@ public class OtpService {
                 .ifPresent(last -> {
                     LocalDateTime cooldownEnd = last.getCreatedAt().plusMinutes(COOLDOWN_MINUTES);
                     if (LocalDateTime.now().isBefore(cooldownEnd)) {
-                        throw new RuntimeException("Please wait " + COOLDOWN_MINUTES + " minutes before requesting a new OTP");
+                        throw new AppException(
+                                ErrorCode.OTP_RESEND_COOLDOWN,
+                                "Please wait " + COOLDOWN_MINUTES + " minutes before requesting a new OTP"
+                        );
                     }
                 });
     }
@@ -101,9 +109,9 @@ public class OtpService {
 
     private OTP findValidOtp(UserEntity user, String otpCode, OtpType otpType) {
         OTP otp = otpRepository.findByUserAndOtpCodeAndOtpType(user, otpCode, otpType)
-                .orElseThrow(() -> new RuntimeException("Invalid OTP"));
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_OTP, "Invalid OTP"));
         if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP has expired");
+            throw new AppException(ErrorCode.OTP_EXPIRED, "OTP has expired");
         }
         return otp;
     }
