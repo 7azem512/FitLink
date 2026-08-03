@@ -46,8 +46,9 @@ public class OpenApiConfig {
                                 - `401` means missing, invalid, or expired authentication. `403` means authentication succeeded but the account or requested operation is not allowed.
                                 """)
                         .contact(new Contact()
-                                .name("Omar Medhat")
-                                .email("mr.omarmedhat@gmail.com"))
+                                .name("Azmex")
+                                .email("azmex.app@gmail.com")
+                                )
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0")));

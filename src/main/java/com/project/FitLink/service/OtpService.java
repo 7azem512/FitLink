@@ -39,7 +39,7 @@ public class OtpService {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
-        OTP otp = findValidOtp(user, otpCode, OtpType.DEFAULT);
+        OTP otp = findValidOtp(user, otpCode, OtpType.VERIFY);
 
         user.setEmailVerified(true);
         user.setStatus(UserStatus.ACTIVE);
@@ -49,6 +49,7 @@ public class OtpService {
 
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
                 .id(user.getId())
+                .publicId(user.getPublicId())
                 .username(user.getUserName())
                 .email(user.getEmail())
                 .password(null)
@@ -95,7 +96,7 @@ public class OtpService {
                 });
     }
 
-    private void sendOtp(UserEntity user, OtpType otpType) {
+    void sendOtp(UserEntity user, OtpType otpType) {
         otpRepository.deleteByUserAndOtpType(user, otpType);
         String otpCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
         otpRepository.save(OTP.builder()
@@ -104,7 +105,12 @@ public class OtpService {
                 .otpType(otpType)
                 .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
                 .build());
-        emailService.sendVerifyEmailOtp(user.getEmail(), user.getUserName(), otpCode);
+
+        if (otpType == OtpType.PASSWORD_RESET) {
+            emailService.sendForgotPasswordOtp(user.getEmail(), user.getUserName(), otpCode);
+        } else {
+            emailService.sendVerifyEmailOtp(user.getEmail(), user.getUserName(), otpCode);
+        }
     }
 
     private OTP findValidOtp(UserEntity user, String otpCode, OtpType otpType) {

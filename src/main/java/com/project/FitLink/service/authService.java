@@ -8,9 +8,11 @@ import com.project.FitLink.dto.Auth.SelectRoleRequest;
 import com.project.FitLink.dto.Auth.SelectRoleResponse;
 import com.project.FitLink.dto.Auth.TokenResponse;
 import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.entities.users.Role;
 import com.project.FitLink.entities.users.UserRole;
 import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
+import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
 import com.project.FitLink.utils.Constants;
@@ -18,6 +20,7 @@ import com.project.FitLink.utils.enums.Roles;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
+import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -29,9 +32,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
+
 
 @Service
 @RequiredArgsConstructor
@@ -41,7 +43,8 @@ public class authService {
     private final jwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
-    private final UserRoleRepository userRoleRepository; // Added UserRoleRepository
+    private final UserRoleRepository userRoleRepository;
+    private final RoleRepository roleRepository;
 
     /**
      * Authenticates a user and generates access and refresh tokens.
@@ -73,11 +76,11 @@ public class authService {
         }
 
         SecurityContextHolder.getContext().setAuthentication(auth);
-        String accessToken = jwtService.generateAccessToken();
-        String refreshToken = jwtService.generateRefreshToken();
+        String accessToken  = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
 
         String userName = jwtService.extractClaims(accessToken).get("userName", String.class);
-        String role = jwtService.extractClaims(accessToken).get("authorities", String.class);
+        String role     = jwtService.extractClaims(accessToken).get("authorities", String.class);
         
         log.info("User {} logged in successfully", loginRequest.getEmail());
         
@@ -99,12 +102,12 @@ public class authService {
         
         FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
 
-        UserEntity user = userRepository.findById(currentUser.getId())
+        UserEntity user = userRepository.findByPublicId(currentUser.getPublicId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
         user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
-        
+
         SecurityContextHolder.clearContext();
 
         log.info("User {} logged out successfully", currentUser.getEmail());
@@ -124,24 +127,26 @@ public class authService {
         }
         
         Claims claims = jwtService.extractClaims(refreshToken);
-        long id = claims.get("id", Long.class);
-        String email = claims.get("email", String.class);
+        UUID publicId  = UUID.fromString(claims.getSubject());
+        String email   = claims.get("email", String.class);
         String userName = claims.get("userName", String.class);
-        String role = claims.get("authorities", String.class);
+        String role    = claims.get("authorities", String.class);
+        Integer tokenVersion = claims.get("tokenVersion", Integer.class);
 
-        if(!userRepository.existsByEmail(email)){
+        if (!userRepository.existsByEmail(email)) {
             throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User not found, please login again");
         }
 
         String newAccessToken = Jwts.builder()
                 .issuer("FitLink")
-                .subject("ACCESS Token")
+                .subject("Access Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + Constants.JWT_ACCESS_TOKEN_EXPIRATION))
-                .claim("id", id)
+                .claim("id", publicId)
                 .claim("email", email)
                 .claim("userName", userName)
                 .claim("authorities", role)
+                .claim("tokenVersion", tokenVersion)
                 .signWith(jwtService.getSecretKey())
                 .compact();
 
@@ -162,12 +167,12 @@ public class authService {
 
         FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
 
-        UserEntity user = userRepository.findById(currentUser.getId())
+        UserEntity user = userRepository.findByPublicId(currentUser.getPublicId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
         // Check if the user's current role is UNASSIGNED
         Optional<UserRole> unassignedRoleOpt = user.getRoles().stream()
-                .filter(userRole -> userRole.getRoleCode() == Roles.UNASSIGNED)
+                .filter(userRole -> userRole.getRole().getRoleCode() == Roles.UNASSIGNED)
                 .findFirst();
 
         if (unassignedRoleOpt.isEmpty()) {
@@ -187,8 +192,10 @@ public class authService {
         }
 
         // Update the user's role
+        Role newRoleEntity = roleRepository.findByRoleCode(newRole)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_ROLE, "Role not found in database."));
         UserRole unassignedRole = unassignedRoleOpt.get();
-        unassignedRole.setRoleCode(newRole);
+        unassignedRole.setRole(newRoleEntity);
         userRoleRepository.save(unassignedRole);
 
         // Increment tokenVersion
