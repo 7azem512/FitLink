@@ -12,6 +12,7 @@ import lombok.experimental.SuperBuilder;
 import java.time.LocalDateTime;
 
 @Entity
+@Table(name = "user_otp")
 @Getter
 @Setter
 @NoArgsConstructor

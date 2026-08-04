@@ -17,87 +17,78 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class JwtTokenValidatorFilter extends OncePerRequestFilter {
+
     private final jwtService jwtService;
     private final UserRepository userRepository;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String token = request.getHeader(Constants.JWT_HEADER);
-        if (token == null || token.isBlank() || !token.startsWith("Bearer ")) {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String header = request.getHeader(Constants.JWT_HEADER);
+        if (header == null || header.isBlank() || !header.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
-        String accessToken = token.substring(7);
+
+        String accessToken = header.substring(7);
         try {
             Claims claims = jwtService.extractClaims(accessToken);
-            Long userId = claims.get("id", Long.class);
+
+            UUID publicId = UUID.fromString(claims.getSubject());
             Integer tokenVersion = claims.get("tokenVersion", Integer.class);
-            String email = claims.get("email", String.class);
+            String email    = claims.get("email", String.class);
             String userName = claims.get("userName", String.class);
             String authorities = claims.get("authorities", String.class);
 
-            if (userId == null || tokenVersion == null) {
+            if (tokenVersion == null) {
                 rejectInvalidJwt(request, response);
                 return;
             }
 
-            UserEntity userEntity = userRepository.findById(userId).orElse(null);
-            if (userEntity == null) {
-                rejectInvalidJwt(request, response);
-                return;
-            }
-            
-            int currentVersion = userEntity.getTokenVersion();
-
-            if (tokenVersion == null || tokenVersion != currentVersion) {
-                log.warn("JWT token version mismatch");
+            UserEntity userEntity = userRepository.findByPublicId(publicId).orElse(null);
+            if (userEntity == null || tokenVersion != userEntity.getTokenVersion()) {
+                log.warn("JWT rejected: publicId={}", publicId);
                 rejectInvalidJwt(request, response);
                 return;
             }
 
-            jwtService.validateTokenForFilter(accessToken);
-            
-            // Build authorities collection
-            Collection<SimpleGrantedAuthority> grantedAuthorities = new ArrayList<>();
-            if (authorities != null && !authorities.isEmpty()) {
-                grantedAuthorities.add(new SimpleGrantedAuthority(authorities));
-            }
-            
-            // Create FitLinkUserDetails with proper data
+            Collection<SimpleGrantedAuthority> grantedAuthorities = authorities != null && !authorities.isBlank()
+                    ? List.of(new SimpleGrantedAuthority(authorities))
+                    : List.of();
+
             FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
-                    .id(userId)
+                    .id(userEntity.getId())
+                    .publicId(publicId)
                     .username(userName)
                     .email(email)
-                    .password(userEntity.getPassword())
-                    .tokenVersion(currentVersion)
+                    .password(null)
+                    .tokenVersion(userEntity.getTokenVersion())
                     .authorities(grantedAuthorities)
                     .build();
-            
-            // Create Authentication object and set it in SecurityContext
+
             Authentication authentication = new UsernamePasswordAuthenticationToken(
-                    userDetails,
-                    null,
-                    grantedAuthorities
-            );
+                    userDetails, null, grantedAuthorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            
-            log.debug("Token validated successfully for user: {}", userId);
+
+            log.debug("JWT validated for publicId={}", publicId);
+
         } catch (JwtException | IllegalArgumentException ex) {
-            log.warn("JWT validation failed for path={}", request.getRequestURI());
+            log.warn("JWT validation failed for path={}: {}", request.getRequestURI(), ex.getMessage());
             rejectInvalidJwt(request, response);
             return;
         }
@@ -114,4 +105,3 @@ public class JwtTokenValidatorFilter extends OncePerRequestFilter {
         );
     }
 }
-

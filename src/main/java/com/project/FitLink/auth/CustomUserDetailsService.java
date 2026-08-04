@@ -2,7 +2,6 @@ package com.project.FitLink.auth;
 
 
 import com.project.FitLink.entities.users.UserEntity;
-import com.project.FitLink.entities.users.UserRole;
 import com.project.FitLink.repository.users.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
@@ -28,7 +27,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 -> new UsernameNotFoundException("User not found for this email : " + email));
 
         List<GrantedAuthority> authorities = user.getRoles().stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getRoleCode().name()))
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getRole().getRoleCode().name()))
                 .collect(Collectors.toList());
 
         if (authorities.isEmpty()) {
@@ -37,9 +36,10 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         return FitLinkUserDetails.builder()
                 .id(user.getId())
+                .publicId(user.getPublicId())
                 .username(user.getUserName())
                 .email(user.getEmail())
-                .password(user.getPassword())
+                .password(user.getPasswordHash())
                 .tokenVersion(user.getTokenVersion())
                 .authorities(authorities)
                 .build();
