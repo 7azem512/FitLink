@@ -25,32 +25,26 @@ public class EmailService {
 
     @Async
     public void sendVerifyEmailOtp(String to, String userName, String otpCode) {
-        try {
-            String template = new ClassPathResource("templates/verify-email-otp.html")
-                    .getContentAsString(StandardCharsets.UTF_8);
-            String body = template
-                    .replace("{{userName}}", userName)
-                    .replace("{{otpCode}}", otpCode);
-            sendEmail(to, "Verify your FitLink account", body);
-        } catch (IOException e) {
-            log.error("Failed to load email template: {}", e.getMessage(), e);
-        }
+        sendOtpEmail(to, userName, otpCode, "templates/verify-email-otp.html", "Verify your FitLink account");
     }
 
     @Async
     public void sendForgotPasswordOtp(String to, String userName, String otpCode) {
-        try {
-            String template = new ClassPathResource("templates/forgot-password-otp.html")
-                    .getContentAsString(StandardCharsets.UTF_8);
+        sendOtpEmail(to, userName, otpCode, "templates/forgot-password-otp.html", "Reset your FitLink password");
+    }
 
+
+
+
+    private void sendOtpEmail(String to, String userName, String otpCode, String templatePath, String subject) {
+        try {
+            String template = new ClassPathResource(templatePath).getContentAsString(StandardCharsets.UTF_8);
             String body = template
                     .replace("{{userName}}", userName)
                     .replace("{{otpCode}}", otpCode);
-
-            sendEmail(to, "Reset your FitLink password", body);
-
+            sendEmail(to, subject, body);
         } catch (IOException e) {
-            log.error("Failed to load forgot password template: {}", e.getMessage(), e);
+            log.error("Failed to load email template {}: {}", templatePath, e.getMessage(), e);
         }
     }
     

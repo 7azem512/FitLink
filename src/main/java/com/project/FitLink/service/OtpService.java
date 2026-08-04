@@ -39,13 +39,11 @@ public class OtpService {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
-        OTP otp = findValidOtp(user, otpCode, OtpType.VERIFY);
+        consumeOtp(user, otpCode, OtpType.VERIFY);
 
         user.setEmailVerified(true);
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
-
-        otpRepository.delete(otp);
 
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
                 .id(user.getId())
@@ -94,6 +92,12 @@ public class OtpService {
                         );
                     }
                 });
+    }
+
+    OTP consumeOtp(UserEntity user, String otpCode, OtpType otpType) {
+        OTP otp = findValidOtp(user, otpCode, otpType);
+        otpRepository.delete(otp);
+        return otp;
     }
 
     void sendOtp(UserEntity user, OtpType otpType) {

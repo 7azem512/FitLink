@@ -81,7 +81,7 @@ public class UserEntity extends AuditEntity {
     )
     private boolean emailVerified;
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<UserRole> roles;
 
     @Column(

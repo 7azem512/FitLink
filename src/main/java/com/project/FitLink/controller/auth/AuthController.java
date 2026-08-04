@@ -54,7 +54,7 @@ public class AuthController {
     @PostMapping("/resend-otp")
     public ResponseEntity<RegisterResponse> resendOtp(
             @Parameter(description = "Email address", required = true) @RequestParam @Email String email,
-            @Parameter(description = "OTP type: DEFAULT for email verification, PASSWORD_RESET for password reset") @RequestParam(defaultValue = "DEFAULT") OtpType otpType) {
+            @Parameter(description = "OTP type: VERIFY for email verification, PASSWORD_RESET for password reset", required = true) @RequestParam OtpType otpType) {
         return ResponseEntity.ok(otpService.resend(email, otpType));
     }
 

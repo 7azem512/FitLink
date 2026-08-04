@@ -9,10 +9,8 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -27,6 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class jwtService {
+
     private final long accessTokenExpiration = Constants.JWT_ACCESS_TOKEN_EXPIRATION;
     private final long refreshTokenExpiration = Constants.JWT_REFRESH_TOKEN_EXPIRATION;
 
@@ -35,7 +34,6 @@ public class jwtService {
 
     private SecretKey secretKey;
 
-    /** Generates an access token for the current user from SecurityContext. */
     public String generateAccessToken() {
         FitLinkUserDetails user = getCurrentUser();
         return buildAccessToken(
@@ -47,7 +45,6 @@ public class jwtService {
         );
     }
 
-    /** Generates an access token for a given UserEntity. */
     public String generateAccessToken(UserEntity userEntity) {
         String authorities = userEntity.getRoles().stream()
                 .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
@@ -61,7 +58,7 @@ public class jwtService {
                 .subject("ACCESS Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + accessTokenExpiration))
-                .claim("id", publicId)
+                .id(publicId.toString())
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
@@ -70,7 +67,6 @@ public class jwtService {
                 .compact();
     }
 
-    /** Generates a refresh token for the current user from SecurityContext. */
     public String generateRefreshToken() {
         FitLinkUserDetails user = getCurrentUser();
         return buildRefreshToken(
@@ -82,7 +78,6 @@ public class jwtService {
         );
     }
 
-    /** Generates a refresh token for a given UserEntity. */
     public String generateRefreshToken(UserEntity userEntity) {
         String authorities = userEntity.getRoles().stream()
                 .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
@@ -96,7 +91,7 @@ public class jwtService {
                 .subject("REFRESH Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + refreshTokenExpiration))
-                .claim("id", publicId)
+                .id(publicId.toString())
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
@@ -105,23 +100,6 @@ public class jwtService {
                 .compact();
     }
 
-    /** Checks if the token is valid (signature + expiry). */
-    public boolean isTokenValid(String token) {
-        try {
-            Date expiration = Jwts.parser()
-                    .verifyWith(getSecretKey())
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload()
-                    .getExpiration();
-            return expiration.after(new Date());
-        } catch (Exception e) {
-            log.debug("Token validation failed: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /** Extracts the claims from the token. */
     public Claims extractClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSecretKey())

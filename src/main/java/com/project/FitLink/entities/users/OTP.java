@@ -32,8 +32,8 @@ public class OTP extends AuditEntity {
     private UserEntity user;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "otp_type")
-    private OtpType otpType = OtpType.DEFAULT;
+    @Column(name = "otp_type", nullable = false)
+    private OtpType otpType;
 
     private String pendingEmail;
 

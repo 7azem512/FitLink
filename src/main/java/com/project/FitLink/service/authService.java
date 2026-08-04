@@ -15,12 +15,9 @@ import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
-import com.project.FitLink.utils.Constants;
 import com.project.FitLink.utils.enums.Roles;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -31,8 +28,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @Service
@@ -60,7 +57,7 @@ public class authService {
         try {
             auth = authenticationManager.authenticate(authentication);
         } catch (BadCredentialsException | UsernameNotFoundException exception) {
-            log.warn("Login failed");
+            log.warn("Login failed", exception);
             throw new AppException(ErrorCode.BAD_CREDENTIALS, "Invalid email or password");
         }
 
@@ -79,16 +76,15 @@ public class authService {
         String accessToken  = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
-        String userName = jwtService.extractClaims(accessToken).get("userName", String.class);
-        String role     = jwtService.extractClaims(accessToken).get("authorities", String.class);
-        
         log.info("User {} logged in successfully", loginRequest.getEmail());
-        
+
         return TokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
-                .userName(userName)
-                .role(role)
+                .userName(user.getUserName())
+                .role(user.getRoles().stream()
+                        .map(ur -> "ROLE_" + ur.getRole().getRoleCode().name())
+                        .findFirst().orElse(""))
                 .build();
     }
 
@@ -122,36 +118,30 @@ public class authService {
      * @throws AppException If the refresh token is invalid or expired.
      */
     public RefreshResponse refreshToken(String refreshToken) {
-        if(!jwtService.isTokenValid(refreshToken)) {
+        Claims claims;
+        try {
+            claims = jwtService.extractClaims(refreshToken);
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
             throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Expired token, please login again");
         }
-        
-        Claims claims = jwtService.extractClaims(refreshToken);
-        UUID publicId  = UUID.fromString(claims.getSubject());
-        String email   = claims.get("email", String.class);
-        String userName = claims.get("userName", String.class);
-        String role    = claims.get("authorities", String.class);
-        Integer tokenVersion = claims.get("tokenVersion", Integer.class);
 
-        if (!userRepository.existsByEmail(email)) {
-            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User not found, please login again");
+        if (!"REFRESH Token".equals(claims.getSubject())) {
+            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Invalid token type");
         }
 
-        String newAccessToken = Jwts.builder()
-                .issuer("FitLink")
-                .subject("Access Token")
-                .issuedAt(new Date())
-                .expiration(new Date(new Date().getTime() + Constants.JWT_ACCESS_TOKEN_EXPIRATION))
-                .claim("id", publicId)
-                .claim("email", email)
-                .claim("userName", userName)
-                .claim("authorities", role)
-                .claim("tokenVersion", tokenVersion)
-                .signWith(jwtService.getSecretKey())
-                .compact();
+        UUID publicId = UUID.fromString(claims.getId());
+        UserEntity user = userRepository.findByPublicId(publicId)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User not found, please login again"));
 
-        log.info("Access token refreshed for user: {}", email);
-        
+        Integer tokenVersion = claims.get("tokenVersion", Integer.class);
+        if (tokenVersion == null || !tokenVersion.equals(user.getTokenVersion())) {
+            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Token is no longer valid, please login again");
+        }
+
+        String newAccessToken = jwtService.generateAccessToken(user);
+
+        log.info("Access token refreshed for user: {}", user.getEmail());
+
         return RefreshResponse.builder()
                 .newAccessToken(newAccessToken)
                 .build();
@@ -182,7 +172,7 @@ public class authService {
         // Validate requested role against allowed values (TRAINEE, COACH, GYM)
         Roles newRole;
         try {
-            newRole = Roles.valueOf(selectRoleRequest.getRole().toUpperCase());
+            newRole = Roles.valueOf(selectRoleRequest.getRole().toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
         }
