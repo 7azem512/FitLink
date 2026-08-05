@@ -11,12 +11,10 @@ import java.util.UUID;
 @Builder
 public class FitLinkUserDetails implements UserDetails {
 
-    private final Long id;
     private final UUID publicId;
     private final String username;
     private final String email;
     private final String password;
-    private final int tokenVersion;
     private final Collection<? extends GrantedAuthority> authorities;
 
     @Override

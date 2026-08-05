@@ -2,12 +2,10 @@ package com.project.FitLink.service;
 
 import com.project.FitLink.dto.Auth.RegisterResponse;
 import com.project.FitLink.dto.Auth.VerifyResetOtpResponse;
-import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.PasswordResetToken;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
-import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.PasswordResetTokenRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.utils.enums.OtpType;
@@ -19,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 
@@ -28,12 +25,10 @@ import java.util.HexFormat;
 public class ForgetPasswordService {
 
     private final UserRepository userRepository;
-    private final OtpRepository otpRepository;
+    private final OtpService otpService;
     private final PasswordResetTokenRepository resetTokenRepository;
-    private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
-    private static final int OTP_EXPIRY_MINUTES = 5;
     private static final int RESET_TOKEN_EXPIRY_MINUTES = 10;
     private static final int RESET_TOKEN_EXPIRY_SECONDS = RESET_TOKEN_EXPIRY_MINUTES * 60;
 
@@ -41,21 +36,11 @@ public class ForgetPasswordService {
 
     @Transactional
     public RegisterResponse sendResetOtp(String email) {
-        String normalized = email.trim().toLowerCase();
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
         UserEntity user = userRepository.findByEmail(normalized).orElse(null);
 
         if (user != null) {
-            otpRepository.deleteByUserAndOtpType(user, OtpType.PASSWORD_RESET);
-
-            String otpCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
-            otpRepository.save(OTP.builder()
-                    .otpCode(otpCode)
-                    .user(user)
-                    .otpType(OtpType.PASSWORD_RESET)
-                    .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
-                    .build());
-
-            emailService.sendForgotPasswordOtp(user.getEmail(), user.getUserName(), otpCode);
+            otpService.sendOtp(user, OtpType.PASSWORD_RESET);
         }
 
         return new RegisterResponse("If the email is registered, a password reset code has been sent.");
@@ -65,19 +50,11 @@ public class ForgetPasswordService {
 
     @Transactional
     public VerifyResetOtpResponse verifyOtp(String email, String otpCode) {
-        String normalized = email.trim().toLowerCase();
+        String normalized = email.trim().toLowerCase(java.util.Locale.ROOT);
         UserEntity user = userRepository.findByEmail(normalized)
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_OTP, "Invalid OTP"));
 
-        OTP otp = otpRepository.findByUserAndOtpCodeAndOtpType(user, otpCode, OtpType.PASSWORD_RESET)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_OTP, "Invalid OTP"));
-
-        if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
-            otpRepository.delete(otp);
-            throw new AppException(ErrorCode.OTP_EXPIRED, "OTP has expired");
-        }
-
-        otpRepository.delete(otp);
+        otpService.consumeOtp(user, otpCode, OtpType.PASSWORD_RESET);
 
         resetTokenRepository.deleteByUser(user);
 
@@ -117,7 +94,6 @@ public class ForgetPasswordService {
 
         UserEntity user = resetToken.getUser();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
-        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
 
         resetTokenRepository.delete(resetToken);
@@ -129,7 +105,7 @@ public class ForgetPasswordService {
 
     private String generateSecureToken() {
         byte[] bytes = new byte[32];
-        new SecureRandom().nextBytes(bytes);
+        new java.security.SecureRandom().nextBytes(bytes);
         return HexFormat.of().formatHex(bytes);
     }
 

@@ -47,7 +47,6 @@ class ForgetPasswordServiceTest {
                 .email("ahmed@example.com")
                 .userName("Ahmed")
                 .passwordHash("hashed")
-                .tokenVersion(1)
                 .build();
     }
 
@@ -217,27 +216,6 @@ class ForgetPasswordServiceTest {
         verify(userRepository).save(user);
         assertThat(user.getPasswordHash()).isEqualTo("encoded-hash");
         assertThat(response.getMessage()).isEqualTo("Password reset successfully.");
-    }
-
-    // ── Test 10: tokenVersion incremented after success ───────────────────────
-
-    @Test
-    void resetPassword_success_incrementsTokenVersion() {
-        int originalVersion = user.getTokenVersion();
-        String rawToken = "valid-token-2";
-        PasswordResetToken token = PasswordResetToken.builder()
-                .tokenHash(sha256(rawToken))
-                .user(user)
-                .createdAt(LocalDateTime.now().minusMinutes(1))
-                .expiresAt(LocalDateTime.now().plusMinutes(9))
-                .build();
-
-        when(resetTokenRepository.findByTokenHash(sha256(rawToken))).thenReturn(Optional.of(token));
-        when(passwordEncoder.encode(anyString())).thenReturn("encoded");
-
-        service.resetPassword(rawToken, "NewPass99", "NewPass99");
-
-        assertThat(user.getTokenVersion()).isEqualTo(originalVersion + 1);
     }
 
     // ── Test 11: Reset token deleted after use (no reuse) ─────────────────────

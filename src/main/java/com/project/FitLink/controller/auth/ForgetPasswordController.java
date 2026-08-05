@@ -32,7 +32,7 @@ public class ForgetPasswordController {
     }
 
     @Operation(summary = "Step 3 – Reset password",
-            description = "Sets a new password using the reset token from step 2. Token is validated via SHA-256 hash lookup. On success the token is deleted and tokenVersion is incremented to invalidate all existing JWT tokens.")
+            description = "Sets a new password using the reset token from step 2. Token is validated via SHA-256 hash lookup. On success the token is deleted and the new password is saved.")
     @PostMapping("/reset")
     public ResponseEntity<RegisterResponse> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
         return ResponseEntity.ok(forgetPasswordService.resetPassword(

@@ -35,12 +35,10 @@ public class CustomUserDetailsService implements UserDetailsService {
         }
 
         return FitLinkUserDetails.builder()
-                .id(user.getId())
                 .publicId(user.getPublicId())
                 .username(user.getUserName())
                 .email(user.getEmail())
                 .password(user.getPasswordHash())
-                .tokenVersion(user.getTokenVersion())
                 .authorities(authorities)
                 .build();
     }

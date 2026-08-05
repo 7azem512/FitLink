@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,22 +39,25 @@ public class OtpService {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
-        OTP otp = findValidOtp(user, otpCode, OtpType.VERIFY);
+        consumeOtp(user, otpCode, OtpType.VERIFY);
 
         user.setEmailVerified(true);
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
-        otpRepository.delete(otp);
+        var authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getRole().getRoleCode().name()))
+                .collect(Collectors.toList());
+        if (authorities.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_ROLE, "User role not found");
+        }
 
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
-                .id(user.getId())
                 .publicId(user.getPublicId())
                 .username(user.getUserName())
                 .email(user.getEmail())
                 .password(null)
-                .tokenVersion(user.getTokenVersion())
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                .authorities(authorities)
                 .build();
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -65,7 +68,7 @@ public class OtpService {
                 .accessToken(jwtService.generateAccessToken())
                 .refreshToken(jwtService.generateRefreshToken())
                 .userName(user.getUserName())
-                .role("ROLE_USER")
+                .role(authorities.get(0).getAuthority())
                 .build();
     }
 
@@ -94,6 +97,12 @@ public class OtpService {
                         );
                     }
                 });
+    }
+
+    OTP consumeOtp(UserEntity user, String otpCode, OtpType otpType) {
+        OTP otp = findValidOtp(user, otpCode, otpType);
+        otpRepository.delete(otp);
+        return otp;
     }
 
     void sendOtp(UserEntity user, OtpType otpType) {

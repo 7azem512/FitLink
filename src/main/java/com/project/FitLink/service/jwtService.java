@@ -9,10 +9,8 @@ import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -27,6 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class jwtService {
+
     private final long accessTokenExpiration = Constants.JWT_ACCESS_TOKEN_EXPIRATION;
     private final long refreshTokenExpiration = Constants.JWT_REFRESH_TOKEN_EXPIRATION;
 
@@ -35,93 +34,70 @@ public class jwtService {
 
     private SecretKey secretKey;
 
-    /** Generates an access token for the current user from SecurityContext. */
     public String generateAccessToken() {
         FitLinkUserDetails user = getCurrentUser();
         return buildAccessToken(
                 user.getPublicId(),
                 user.getEmail(),
                 user.getUsername(),
-                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(",")),
-                user.getTokenVersion()
+                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(","))
         );
     }
 
-    /** Generates an access token for a given UserEntity. */
     public String generateAccessToken(UserEntity userEntity) {
         String authorities = userEntity.getRoles().stream()
                 .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
                 .collect(Collectors.joining(","));
-        return buildAccessToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities, userEntity.getTokenVersion());
+        return buildAccessToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities);
     }
 
-    private String buildAccessToken(UUID publicId, String email, String username, String authorities, int tokenVersion) {
+    private String buildAccessToken(UUID publicId, String email, String username, String authorities) {
         return Jwts.builder()
                 .issuer("FitLink")
                 .subject("ACCESS Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + accessTokenExpiration))
-                .claim("id", publicId)
+                .id(UUID.randomUUID().toString())
+                .claim("publicId", publicId.toString())
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
-                .claim("tokenVersion", tokenVersion)
                 .signWith(getSecretKey())
                 .compact();
     }
 
-    /** Generates a refresh token for the current user from SecurityContext. */
     public String generateRefreshToken() {
         FitLinkUserDetails user = getCurrentUser();
         return buildRefreshToken(
                 user.getPublicId(),
                 user.getEmail(),
                 user.getUsername(),
-                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(",")),
-                user.getTokenVersion()
+                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(","))
         );
     }
 
-    /** Generates a refresh token for a given UserEntity. */
     public String generateRefreshToken(UserEntity userEntity) {
         String authorities = userEntity.getRoles().stream()
                 .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
                 .collect(Collectors.joining(","));
-        return buildRefreshToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities, userEntity.getTokenVersion());
+        return buildRefreshToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities);
     }
 
-    private String buildRefreshToken(UUID publicId, String email, String username, String authorities, int tokenVersion) {
+    private String buildRefreshToken(UUID publicId, String email, String username, String authorities) {
         return Jwts.builder()
                 .issuer("FitLink")
                 .subject("REFRESH Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + refreshTokenExpiration))
-                .claim("id", publicId)
+                .id(UUID.randomUUID().toString())
+                .claim("publicId", publicId.toString())
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
-                .claim("tokenVersion", tokenVersion)
                 .signWith(getSecretKey())
                 .compact();
     }
 
-    /** Checks if the token is valid (signature + expiry). */
-    public boolean isTokenValid(String token) {
-        try {
-            Date expiration = Jwts.parser()
-                    .verifyWith(getSecretKey())
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload()
-                    .getExpiration();
-            return expiration.after(new Date());
-        } catch (Exception e) {
-            log.debug("Token validation failed: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /** Extracts the claims from the token. */
     public Claims extractClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSecretKey())

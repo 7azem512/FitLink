@@ -54,7 +54,7 @@ public class AuthController {
     @PostMapping("/resend-otp")
     public ResponseEntity<RegisterResponse> resendOtp(
             @Parameter(description = "Email address", required = true) @RequestParam @Email String email,
-            @Parameter(description = "OTP type: DEFAULT for email verification, PASSWORD_RESET for password reset") @RequestParam(defaultValue = "DEFAULT") OtpType otpType) {
+            @Parameter(description = "OTP type: VERIFY for email verification, PASSWORD_RESET for password reset", required = true) @RequestParam OtpType otpType) {
         return ResponseEntity.ok(otpService.resend(email, otpType));
     }
 
@@ -67,7 +67,16 @@ public class AuthController {
     }
 
     @Operation(summary = "Logout",
-            description = "Increments tokenVersion to invalidate all existing tokens across all devices.",
+            description = """
+                    Clears the current server-side security context.
+
+                    TEMPORARY BEHAVIOR — this endpoint does NOT revoke tokens on the server:
+                    - Existing Access Tokens remain valid until expiration.
+                    - Existing Refresh Tokens remain valid until expiration.
+                    - The mobile client MUST delete both tokens from local storage immediately.
+
+                    Real server-side logout will be implemented by deleting the Refresh Token session from Redis.
+                    """,
             security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/logout")
     public ResponseEntity<RegisterResponse> logout() {
