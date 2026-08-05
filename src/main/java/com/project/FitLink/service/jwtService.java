@@ -40,8 +40,7 @@ public class jwtService {
                 user.getPublicId(),
                 user.getEmail(),
                 user.getUsername(),
-                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(",")),
-                user.getTokenVersion()
+                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(","))
         );
     }
 
@@ -49,20 +48,20 @@ public class jwtService {
         String authorities = userEntity.getRoles().stream()
                 .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
                 .collect(Collectors.joining(","));
-        return buildAccessToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities, userEntity.getTokenVersion());
+        return buildAccessToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities);
     }
 
-    private String buildAccessToken(UUID publicId, String email, String username, String authorities, int tokenVersion) {
+    private String buildAccessToken(UUID publicId, String email, String username, String authorities) {
         return Jwts.builder()
                 .issuer("FitLink")
                 .subject("ACCESS Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + accessTokenExpiration))
-                .id(publicId.toString())
+                .id(UUID.randomUUID().toString())
+                .claim("publicId", publicId.toString())
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
-                .claim("tokenVersion", tokenVersion)
                 .signWith(getSecretKey())
                 .compact();
     }
@@ -73,8 +72,7 @@ public class jwtService {
                 user.getPublicId(),
                 user.getEmail(),
                 user.getUsername(),
-                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(",")),
-                user.getTokenVersion()
+                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(","))
         );
     }
 
@@ -82,20 +80,20 @@ public class jwtService {
         String authorities = userEntity.getRoles().stream()
                 .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
                 .collect(Collectors.joining(","));
-        return buildRefreshToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities, userEntity.getTokenVersion());
+        return buildRefreshToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities);
     }
 
-    private String buildRefreshToken(UUID publicId, String email, String username, String authorities, int tokenVersion) {
+    private String buildRefreshToken(UUID publicId, String email, String username, String authorities) {
         return Jwts.builder()
                 .issuer("FitLink")
                 .subject("REFRESH Token")
                 .issuedAt(new Date())
                 .expiration(new Date(new Date().getTime() + refreshTokenExpiration))
-                .id(publicId.toString())
+                .id(UUID.randomUUID().toString())
+                .claim("publicId", publicId.toString())
                 .claim("email", email)
                 .claim("userName", username)
                 .claim("authorities", authorities)
-                .claim("tokenVersion", tokenVersion)
                 .signWith(getSecretKey())
                 .compact();
     }

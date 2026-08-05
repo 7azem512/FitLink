@@ -1,8 +1,6 @@
 package com.project.FitLink.service;
 
 import com.project.FitLink.auth.FitLinkUserDetails;
-import com.project.FitLink.entities.users.UserEntity;
-import com.project.FitLink.repository.users.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +13,6 @@ import org.springframework.stereotype.Service;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -26,7 +23,6 @@ public class TokenAuthenticationService {
     private static final String ACCESS_TOKEN_SUBJECT = "ACCESS Token";
 
     private final jwtService jwtService;
-    private final UserRepository userRepository;
 
     public Authentication authenticate(String token) {
         Claims claims = jwtService.extractClaims(token);
@@ -35,20 +31,11 @@ public class TokenAuthenticationService {
             throw new JwtException("Invalid token type");
         }
 
-        UUID publicId = UUID.fromString(claims.getId());
-        Integer tokenVersion = claims.get("tokenVersion", Integer.class);
-
-        if (tokenVersion == null) {
-            throw new JwtException("Missing tokenVersion");
+        String publicIdStr = claims.get("publicId", String.class);
+        if (publicIdStr == null) {
+            throw new JwtException("Missing publicId claim");
         }
-
-        UserEntity user = userRepository.findByPublicId(publicId)
-                .orElseThrow(() -> new JwtException("User not found"));
-
-        if (!Objects.equals(tokenVersion, user.getTokenVersion())) {
-            throw new JwtException("Token version mismatch");
-        }
-
+        UUID publicId = UUID.fromString(publicIdStr);
         String email    = claims.get("email", String.class);
         String userName = claims.get("userName", String.class);
         String authStr  = claims.get("authorities", String.class);
@@ -63,12 +50,10 @@ public class TokenAuthenticationService {
                                 .toList();
 
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
-                .id(user.getId())
-                .publicId(user.getPublicId())
+                .publicId(publicId)
                 .username(userName)
                 .email(email)
                 .password(null)
-                .tokenVersion(user.getTokenVersion())
                 .authorities(authorities)
                 .build();
 

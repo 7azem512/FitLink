@@ -84,14 +84,6 @@ public class UserEntity extends AuditEntity {
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<UserRole> roles;
 
-    @Column(
-            name = "token_version",
-            nullable = false
-    )
-    private int tokenVersion;
-
-
-
     @PrePersist
     private void initialize() {
         if (publicId == null) {
@@ -100,10 +92,6 @@ public class UserEntity extends AuditEntity {
 
         if (status == null) {
             status = UserStatus.PENDING;
-        }
-
-        if (tokenVersion == 0) {
-            tokenVersion = 1;
         }
     }
 }

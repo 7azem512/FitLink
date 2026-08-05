@@ -88,27 +88,20 @@ public class authService {
                 .build();
     }
 
-    @Transactional
     public RegisterResponse logout() {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        
-        if (!(principal instanceof FitLinkUserDetails)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED, "Invalid authentication. User details not found.");
-        }
-        
-        FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
-
-        UserEntity user = userRepository.findByPublicId(currentUser.getPublicId())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
-
-        user.setTokenVersion(user.getTokenVersion() + 1);
-        userRepository.save(user);
+        // TODO: Implement server-side logout by revoking the Refresh Token session in Redis.
+        //
+        // TEMPORARY BEHAVIOR — this endpoint does NOT revoke tokens on the server.
+        // Existing Access Tokens remain valid until expiration.
+        // Existing Refresh Tokens remain valid until expiration.
+        // The mobile client MUST delete both tokens from local storage immediately.
+        // Real server-side logout will be completed by deleting the Refresh Token session from Redis.
 
         SecurityContextHolder.clearContext();
 
-        log.info("User {} logged out successfully", currentUser.getEmail());
-        
-        return new RegisterResponse("Logged out successfully.");
+        log.info("User logged out (local context cleared). Token revocation pending Redis implementation.");
+
+        return new RegisterResponse("Logged out locally. Server-side refresh token revocation will be implemented with Redis.");
     }
 
     /**
@@ -129,14 +122,12 @@ public class authService {
             throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Invalid token type");
         }
 
-        UUID publicId = UUID.fromString(claims.getId());
-        UserEntity user = userRepository.findByPublicId(publicId)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User not found, please login again"));
-
-        Integer tokenVersion = claims.get("tokenVersion", Integer.class);
-        if (tokenVersion == null || !tokenVersion.equals(user.getTokenVersion())) {
-            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Token is no longer valid, please login again");
+        String publicIdStr = claims.get("publicId", String.class);
+        if (publicIdStr == null) {
+            throw new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "Invalid token structure");
         }
+        UserEntity user = userRepository.findByPublicId(UUID.fromString(publicIdStr))
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REFRESH_TOKEN, "User not found, please login again"));
 
         String newAccessToken = jwtService.generateAccessToken(user);
 
@@ -188,13 +179,8 @@ public class authService {
         unassignedRole.setRole(newRoleEntity);
         userRoleRepository.save(unassignedRole);
 
-        // Increment tokenVersion
-        user.setTokenVersion(user.getTokenVersion() + 1);
-        userRepository.save(user);
-
-        // Generate new tokens with the updated role and tokenVersion
-        String newAccessToken = jwtService.generateAccessToken(user); // Assuming jwtService can take UserEntity
-        String newRefreshToken = jwtService.generateRefreshToken(user); // Assuming jwtService can take UserEntity
+        String newAccessToken  = jwtService.generateAccessToken(user);
+        String newRefreshToken = jwtService.generateRefreshToken(user);
 
         log.info("User {} selected role: {}", user.getEmail(), newRole);
 

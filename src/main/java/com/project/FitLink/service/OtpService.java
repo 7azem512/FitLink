@@ -20,7 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -45,14 +45,19 @@ public class OtpService {
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
+        var authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.getRole().getRoleCode().name()))
+                .collect(Collectors.toList());
+        if (authorities.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_ROLE, "User role not found");
+        }
+
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
-                .id(user.getId())
                 .publicId(user.getPublicId())
                 .username(user.getUserName())
                 .email(user.getEmail())
                 .password(null)
-                .tokenVersion(user.getTokenVersion())
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                .authorities(authorities)
                 .build();
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -63,7 +68,7 @@ public class OtpService {
                 .accessToken(jwtService.generateAccessToken())
                 .refreshToken(jwtService.generateRefreshToken())
                 .userName(user.getUserName())
-                .role("ROLE_USER")
+                .role(authorities.get(0).getAuthority())
                 .build();
     }
 

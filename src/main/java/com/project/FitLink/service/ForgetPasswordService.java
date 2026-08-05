@@ -94,7 +94,6 @@ public class ForgetPasswordService {
 
         UserEntity user = resetToken.getUser();
         user.setPasswordHash(passwordEncoder.encode(newPassword));
-        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
 
         resetTokenRepository.delete(resetToken);
