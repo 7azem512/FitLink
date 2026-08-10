@@ -35,8 +35,8 @@ public class EmailService {
 
 
 
-
-    private void sendOtpEmail(String to, String userName, String otpCode, String templatePath, String subject) {
+    @Async
+    public void sendOtpEmail(String to, String userName, String otpCode, String templatePath, String subject) {
         try {
             String template = new ClassPathResource(templatePath).getContentAsString(StandardCharsets.UTF_8);
             String body = template

@@ -41,9 +41,11 @@ public class ForgetPasswordService {
 
         if (user != null) {
             otpService.sendOtp(user, OtpType.PASSWORD_RESET);
+            return new RegisterResponse("A password reset code has been sent to your email.");
         }
 
-        return new RegisterResponse("If the email is registered, a password reset code has been sent.");
+        throw new AppException(ErrorCode.USER_NOT_FOUND, "User not found with this email");
+
     }
 
     // ─── Step 2: Verify OTP → return reset token ─────────────────────────────
@@ -99,6 +101,7 @@ public class ForgetPasswordService {
         resetTokenRepository.delete(resetToken);
 
         return new RegisterResponse("Password reset successfully.");
+        // remove the old token (login again)
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

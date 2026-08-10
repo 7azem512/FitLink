@@ -9,6 +9,7 @@ import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.UserRepository;
+import com.project.FitLink.utils.Constants;
 import com.project.FitLink.utils.FitLinkUtils;
 import com.project.FitLink.utils.enums.OtpType;
 import com.project.FitLink.utils.enums.UserStatus;
@@ -34,8 +35,8 @@ public class OtpService {
     private final EmailService emailService;
     private final jwtService jwtService;
 
-    private static final int COOLDOWN_MINUTES = 2;
-    private static final int OTP_EXPIRY_MINUTES = 10;
+    private final int COOLDOWN_MINUTES = Constants.COOLDOWN_MINUTES;
+    private final int OTP_EXPIRY_MINUTES = Constants.OTP_EXPIRY_MINUTES;
 
     @Transactional
     public TokenResponse verifyEmail(String email, String otpCode) {
@@ -115,6 +116,7 @@ public class OtpService {
                 .user(user)
                 .otpType(otpType)
                 .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
+                .pendingEmail(user.getEmail())
                 .build());
 
         if (otpType == OtpType.PASSWORD_RESET) {

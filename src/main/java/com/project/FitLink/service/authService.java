@@ -188,7 +188,7 @@ public class authService {
                 .role(newRole.name())
                 .accessToken(newAccessToken)
                 .refreshToken(newRefreshToken)
-                .message("Role selected successfully.")
+                .message("Role updated successfully.")
                 .build();
     }
 }
