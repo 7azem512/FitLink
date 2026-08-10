@@ -1,6 +1,7 @@
 package com.project.FitLink.controller.auth;
 
 import com.project.FitLink.dto.Auth.*;
+import com.project.FitLink.dto.GlobalResponse;
 import com.project.FitLink.service.ForgetPasswordService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,22 +21,34 @@ public class ForgetPasswordController {
     @Operation(summary = "Step 1 – Request password-reset OTP",
             description = "Sends a 6-digit OTP to the email if registered. OTP expires in 5 minutes. Always returns the same response to avoid revealing whether the email exists.")
     @PostMapping
-    public ResponseEntity<RegisterResponse> requestOtp(@RequestBody @Valid ForgotPasswordRequest request) {
-        return ResponseEntity.ok(forgetPasswordService.sendResetOtp(request.getEmail()));
+    public ResponseEntity<GlobalResponse> requestOtp(@RequestBody @Valid ForgotPasswordRequest request) {
+        RegisterResponse result = forgetPasswordService.sendResetOtp(request.getEmail());
+        GlobalResponse response = new GlobalResponse();
+        response.addMessage("message", result.getMessage());
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Step 2 – Verify password-reset OTP",
             description = "Validates the OTP from step 1. On success the OTP is consumed and a single-use reset token valid for 10 minutes is returned. Only the SHA-256 hash of the token is stored in the database.")
     @PostMapping("/verify-otp")
-    public ResponseEntity<VerifyResetOtpResponse> verifyOtp(@RequestBody @Valid VerifyResetOtpRequest request) {
-        return ResponseEntity.ok(forgetPasswordService.verifyOtp(request.getEmail(), request.getOtpCode()));
+    public ResponseEntity<GlobalResponse> verifyOtp(@RequestBody @Valid VerifyResetOtpRequest request) {
+        VerifyResetOtpResponse result = forgetPasswordService.verifyOtp(request.getEmail(), request.getOtpCode());
+        GlobalResponse response = new GlobalResponse();
+        response.addMessage("resetToken", result.getResetToken());
+        String expiration = result.getExpiresIn() + " seconds";
+        response.addMessage("expiresIn", expiration);
+        response.addMessage("message", "OTP verified successfully, you can reset your password now");
+        return ResponseEntity.ok(response);
     }
 
     @Operation(summary = "Step 3 – Reset password",
             description = "Sets a new password using the reset token from step 2. Token is validated via SHA-256 hash lookup. On success the token is deleted and the new password is saved.")
     @PostMapping("/reset")
-    public ResponseEntity<RegisterResponse> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
-        return ResponseEntity.ok(forgetPasswordService.resetPassword(
-                request.getResetToken(), request.getNewPassword(), request.getConfirmPassword()));
+    public ResponseEntity<GlobalResponse> resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        RegisterResponse result = forgetPasswordService.resetPassword(
+                request.getResetToken(), request.getNewPassword(), request.getConfirmPassword());
+        GlobalResponse response = new GlobalResponse();
+        response.addMessage("message", result.getMessage());
+        return ResponseEntity.ok(response);
     }
 }

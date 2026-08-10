@@ -33,10 +33,8 @@ public class EmailService {
         sendOtpEmail(to, userName, otpCode, "templates/forgot-password-otp.html", "Reset your FitLink password");
     }
 
-
-
-
-    private void sendOtpEmail(String to, String userName, String otpCode, String templatePath, String subject) {
+    @Async
+    public void sendOtpEmail(String to, String userName, String otpCode, String templatePath, String subject) {
         try {
             String template = new ClassPathResource(templatePath).getContentAsString(StandardCharsets.UTF_8);
             String body = template
@@ -47,7 +45,6 @@ public class EmailService {
             log.error("Failed to load email template {}: {}", templatePath, e.getMessage(), e);
         }
     }
-    
 
     @Async
     public void sendEmail(String to, String subject, String htmlBody) {
