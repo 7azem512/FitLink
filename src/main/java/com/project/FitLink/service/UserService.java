@@ -58,4 +58,5 @@ public class UserService {
 
         return new RegisterResponse("Registration successful. Please check your email for the OTP.");
     }
+
 }
