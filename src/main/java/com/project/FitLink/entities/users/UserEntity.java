@@ -1,7 +1,6 @@
 package com.project.FitLink.entities.users;
 
 import com.project.FitLink.auditing.AuditEntity;
-import com.project.FitLink.utils.enums.Roles;
 import com.project.FitLink.utils.enums.UserStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -68,10 +67,6 @@ public class UserEntity extends AuditEntity {
     )
     private String passwordHash;
 
-    public String getPassword() {
-        return passwordHash;
-    }
-
     @Enumerated(EnumType.STRING)
     @Column(
             name = "status",
@@ -86,14 +81,9 @@ public class UserEntity extends AuditEntity {
     )
     private boolean emailVerified;
 
-    @OneToMany(mappedBy = "user", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<UserRole> roles;
 
-    @Column(
-            name = "token_version",
-            nullable = false
-    )
-    private int tokenVersion;
     @PrePersist
     private void initialize() {
         if (publicId == null) {
@@ -103,15 +93,5 @@ public class UserEntity extends AuditEntity {
         if (status == null) {
             status = UserStatus.PENDING;
         }
-
-        if (tokenVersion == 0) {
-            tokenVersion = 1;
-        }
     }
-//    @Column(
-//            name = "role",
-//            nullable = false
-//    )
-//    @Enumerated(EnumType.STRING)
-//    private Roles role;
 }

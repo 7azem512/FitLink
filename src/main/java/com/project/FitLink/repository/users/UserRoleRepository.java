@@ -10,6 +10,6 @@ import java.util.Optional;
 
 public interface UserRoleRepository extends JpaRepository<UserRole, Long> {
     List<UserRole> findByUser(UserEntity user);
-    Optional<UserRole> findByUserAndRoleCode(UserEntity user, Roles roleCode);
-    boolean existsByUserAndRoleCode(UserEntity user, Roles roleCode);
+    Optional<UserRole> findByUserAndRole_RoleCode(UserEntity user, Roles roleCode);
+    boolean existsByUserAndRole_RoleCode(UserEntity user, Roles roleCode);
 }

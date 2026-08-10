@@ -9,9 +9,11 @@ import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.UserRepository;
+import com.project.FitLink.utils.FitLinkUtils;
 import com.project.FitLink.utils.enums.OtpType;
 import com.project.FitLink.utils.enums.UserStatus;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,21 +42,24 @@ public class OtpService {
         UserEntity user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
-        OTP otp = findValidOtp(user, otpCode, OtpType.DEFAULT);
+        consumeOtp(user, otpCode, OtpType.VERIFY);
 
         user.setEmailVerified(true);
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
-        otpRepository.delete(otp);
+        var authorities = FitLinkUtils.getUserAuthorities(user);
+
+        if (authorities.isEmpty()) {
+            throw new AppException(ErrorCode.INVALID_ROLE, "User role not found");
+        }
 
         FitLinkUserDetails userDetails = FitLinkUserDetails.builder()
-                .id(user.getId())
+                .publicId(user.getPublicId())
                 .username(user.getUserName())
                 .email(user.getEmail())
                 .password(null)
-                .tokenVersion(user.getTokenVersion())
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_USER")))
+                .authorities(authorities)
                 .build();
 
         SecurityContextHolder.getContext().setAuthentication(
@@ -64,7 +70,7 @@ public class OtpService {
                 .accessToken(jwtService.generateAccessToken())
                 .refreshToken(jwtService.generateRefreshToken())
                 .userName(user.getUserName())
-                .role("ROLE_USER")
+                .role(authorities.get(0).getAuthority())
                 .build();
     }
 
@@ -95,16 +101,32 @@ public class OtpService {
                 });
     }
 
-    private void sendOtp(UserEntity user, OtpType otpType) {
+    OTP consumeOtp(UserEntity user, String otpCode, OtpType otpType) {
+        OTP otp = findValidOtp(user, otpCode, otpType);
+        otpRepository.delete(otp);
+        return otp;
+    }
+
+    void sendOtp(UserEntity user, OtpType otpType) {
         otpRepository.deleteByUserAndOtpType(user, otpType);
-        String otpCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        String otpCode = getOtp();
         otpRepository.save(OTP.builder()
                 .otpCode(otpCode)
                 .user(user)
                 .otpType(otpType)
                 .expiresAt(LocalDateTime.now().plusMinutes(OTP_EXPIRY_MINUTES))
                 .build());
-        emailService.sendVerifyEmailOtp(user.getEmail(), user.getUserName(), otpCode);
+
+        if (otpType == OtpType.PASSWORD_RESET) {
+            emailService.sendForgotPasswordOtp(user.getEmail(), user.getUserName(), otpCode);
+        } else {
+            emailService.sendVerifyEmailOtp(user.getEmail(), user.getUserName(), otpCode);
+        }
+    }
+
+    private static @NonNull String getOtp() {
+        String otpCode = String.format("%06d", new SecureRandom().nextInt(1_000_000));
+        return otpCode;
     }
 
     private OTP findValidOtp(UserEntity user, String otpCode, OtpType otpType) {
