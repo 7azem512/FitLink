@@ -5,6 +5,7 @@ import com.project.FitLink.dto.GlobalResponse;
 import com.project.FitLink.service.OtpService;
 import com.project.FitLink.service.UserService;
 import com.project.FitLink.service.authService;
+import com.project.FitLink.service.googleAuthService;
 import com.project.FitLink.utils.Constants;
 import com.project.FitLink.utils.enums.OtpType;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class AuthController {
     private final authService authService;
     private final UserService userService;
     private final OtpService otpService;
+    private final googleAuthService googleAuthService;
 
     @Operation(summary = "Register a new user",
             description = "Creates a new account and sends a 6-digit OTP to the email. Account stays inactive until OTP is verified.")
@@ -52,6 +56,21 @@ public class AuthController {
         response.addMessage("accessToken", result.getAccessToken());
         response.addMessage("refreshToken", result.getRefreshToken());
         return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Sign in with Google",
+            description = "Verifies a Google ID token obtained from Google Sign-In on the mobile client, finds or creates the matching user, and returns the application's own access and refresh tokens. The Google ID token is used once and is never the application token.")
+    @PostMapping("/google")
+    public ResponseEntity<Map<String, Object>> googleLogin(@RequestBody @Valid GoogleLoginRequest googleLoginRequest) {
+        TokenResponse result = googleAuthService.authenticateWithGoogle(googleLoginRequest);
+        GlobalResponse response = new GlobalResponse();
+        response.addMessage("message", "Google login successful");
+        response.addMessage("userName", result.getUserName());
+        response.addMessage("role", result.getRole());
+        response.addMessage("accessToken", result.getAccessToken());
+        response.addMessage("refreshToken", result.getRefreshToken());
+        var x = response.getApiResponse();
+        return ResponseEntity.ok(x);
     }
 
     @Operation(summary = "Verify email OTP",

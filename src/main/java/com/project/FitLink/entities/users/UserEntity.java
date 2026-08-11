@@ -1,6 +1,7 @@
 package com.project.FitLink.entities.users;
 
 import com.project.FitLink.auditing.AuditEntity;
+import com.project.FitLink.utils.enums.AuthProvider;
 import com.project.FitLink.utils.enums.UserStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
@@ -25,6 +26,10 @@ import java.util.UUID;
                 @UniqueConstraint(
                         name = "uq_app_user_phone",
                         columnNames = "phone"
+                ),
+                @UniqueConstraint(
+                        name = "uq_app_user_provider_provider_id",
+                        columnNames = {"provider", "provider_id"}
                 )
         }
 )
@@ -80,6 +85,19 @@ public class UserEntity extends AuditEntity {
             nullable = false
     )
     private boolean emailVerified;
+
+    @Enumerated(EnumType.STRING)
+    @Column(
+            name = "provider",
+            length = 20
+    )
+    private AuthProvider provider;
+
+    @Column(
+            name = "provider_id",
+            length = 255
+    )
+    private String providerId;
 
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private List<UserRole> roles;

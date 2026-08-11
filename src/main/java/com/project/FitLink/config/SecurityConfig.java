@@ -67,6 +67,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/register",
                                 "/auth/login",
+                                "/auth/google",
                                 "/auth/verify-otp",
                                 "/auth/resend-otp",
                                 "/auth/refresh-token",

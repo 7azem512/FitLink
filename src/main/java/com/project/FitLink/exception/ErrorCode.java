@@ -26,6 +26,8 @@ public enum ErrorCode {
     INVALID_ROLE(HttpStatus.BAD_REQUEST),
     ROLE_ALREADY_ASSIGNED(HttpStatus.CONFLICT),
     ROLE_NOT_ALLOWED(HttpStatus.FORBIDDEN),
+    GOOGLE_AUTH_FAILED(HttpStatus.UNAUTHORIZED),
+    ACCOUNT_CONFLICT(HttpStatus.CONFLICT),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus status;

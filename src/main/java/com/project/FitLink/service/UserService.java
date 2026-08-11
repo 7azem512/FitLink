@@ -10,12 +10,15 @@ import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
+import com.project.FitLink.utils.enums.AuthProvider;
 import com.project.FitLink.utils.enums.OtpType;
 import com.project.FitLink.utils.enums.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import static com.project.FitLink.utils.enums.AuthProvider.LOCAL;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +45,7 @@ public class UserService {
                 .phone(request.getPhone())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .emailVerified(false)
+                .provider(LOCAL)
                 .build();
         userRepository.save(user);
 
