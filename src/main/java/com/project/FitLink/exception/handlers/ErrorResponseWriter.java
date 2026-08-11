@@ -1,6 +1,7 @@
-package com.project.FitLink.exception;
+package com.project.FitLink.exception.handlers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.FitLink.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 

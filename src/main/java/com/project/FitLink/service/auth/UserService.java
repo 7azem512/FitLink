@@ -1,4 +1,4 @@
-package com.project.FitLink.service;
+package com.project.FitLink.service.auth;
 
 import com.project.FitLink.dto.Auth.RegisterRequest;
 import com.project.FitLink.dto.Auth.RegisterResponse;

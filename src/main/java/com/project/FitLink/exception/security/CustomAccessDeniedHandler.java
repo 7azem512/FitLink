@@ -1,7 +1,7 @@
-package com.project.FitLink.exception.authHandle;
+package com.project.FitLink.exception.security;
 
 import com.project.FitLink.exception.ErrorCode;
-import com.project.FitLink.exception.ErrorResponseWriter;
+import com.project.FitLink.exception.handlers.ErrorResponseWriter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

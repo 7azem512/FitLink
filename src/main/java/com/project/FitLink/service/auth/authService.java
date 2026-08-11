@@ -1,4 +1,4 @@
-package com.project.FitLink.service;
+package com.project.FitLink.service.auth;
 
 import com.project.FitLink.auth.FitLinkUserDetails;
 import com.project.FitLink.dto.Auth.LoginRequest;

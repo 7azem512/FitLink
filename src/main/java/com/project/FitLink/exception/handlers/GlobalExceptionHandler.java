@@ -1,7 +1,9 @@
-package com.project.FitLink.exception;
+package com.project.FitLink.exception.handlers;
 
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+import com.project.FitLink.exception.AppException;
+import com.project.FitLink.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;

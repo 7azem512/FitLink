@@ -3,8 +3,8 @@ package com.project.FitLink.config;
 
 
 import com.project.FitLink.auth.CustomAuthenticationProvider;
-import com.project.FitLink.exception.authHandle.CustomAccessDeniedHandler;
-import com.project.FitLink.exception.authHandle.CustomAuthenticationEntryPoint;
+import com.project.FitLink.exception.security.CustomAccessDeniedHandler;
+import com.project.FitLink.exception.security.CustomAuthenticationEntryPoint;
 import com.project.FitLink.filters.JwtTokenValidatorFilter;
 import com.project.FitLink.filters.RateLimitingFilter;
 import jakarta.servlet.http.HttpServletRequest;

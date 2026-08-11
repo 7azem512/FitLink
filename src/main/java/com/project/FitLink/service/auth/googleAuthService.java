@@ -1,4 +1,4 @@
-package com.project.FitLink.service;
+package com.project.FitLink.service.auth;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.project.FitLink.auth.FitLinkUserDetails;

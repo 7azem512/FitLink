@@ -16,8 +16,8 @@ FitLink backend: Spring Boot 4.0.6, Java 21, Maven. Stateless JWT auth (access 1
 
 ## Auth architecture (current state on `refactor-auth`)
 
-- `tokenVersion` was **removed** (commit "remove token version"). JWT validation in `filters/JwtTokenValidatorFilter` → `service/TokenAuthenticationService` is now fully stateless — no DB hit per request.
-- `POST /auth/logout` is a **no-op stub**: only clears the `SecurityContext`; tokens stay valid until expiry. Real revocation is a planned Redis session feature (see `service/authService.java:91`). Don't re-add tokenVersion.
+- `tokenVersion` was **removed** (commit "remove token version"). JWT validation in `filters/JwtTokenValidatorFilter` → `service/auth/TokenAuthenticationService` is now fully stateless — no DB hit per request.
+- `POST /auth/logout` is a **no-op stub**: only clears the `SecurityContext`; tokens stay valid until expiry. Real revocation is a planned Redis session feature (see `service/auth/authService.java:91`). Don't re-add tokenVersion.
 - `selectRole` and password reset no longer invalidate old tokens.
 - **`FLOWS.md`, `IMPROVEMENTS.md`, `PERFORMANCE_AUTH_IMPROVEMENTS.md` are stale** (still document `token_version`, token invalidation, old OTP flow). Trust the code; treat them as design history only.
 

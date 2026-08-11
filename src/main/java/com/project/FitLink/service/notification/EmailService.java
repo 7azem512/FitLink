@@ -1,4 +1,4 @@
-package com.project.FitLink.service;
+package com.project.FitLink.service.notification;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;

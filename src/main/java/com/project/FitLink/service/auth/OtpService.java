@@ -1,4 +1,4 @@
-package com.project.FitLink.service;
+package com.project.FitLink.service.auth;
 
 import com.project.FitLink.auth.FitLinkUserDetails;
 import com.project.FitLink.dto.Auth.RegisterResponse;
@@ -9,6 +9,7 @@ import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.OtpRepository;
 import com.project.FitLink.repository.users.UserRepository;
+import com.project.FitLink.service.notification.EmailService;
 import com.project.FitLink.utils.Constants;
 import com.project.FitLink.utils.FitLinkUtils;
 import com.project.FitLink.utils.enums.OtpType;

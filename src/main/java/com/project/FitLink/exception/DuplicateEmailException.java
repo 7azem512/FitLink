@@ -1,7 +1,4 @@
-package com.project.FitLink.exception.exceptions;
-
-import com.project.FitLink.exception.AppException;
-import com.project.FitLink.exception.ErrorCode;
+package com.project.FitLink.exception;
 
 public class DuplicateEmailException extends AppException {
     public DuplicateEmailException() {
