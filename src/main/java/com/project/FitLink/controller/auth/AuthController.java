@@ -7,7 +7,7 @@ import com.project.FitLink.service.auth.UserService;
 import com.project.FitLink.service.auth.authService;
 import com.project.FitLink.service.auth.googleAuthService;
 import com.project.FitLink.utils.Constants;
-import com.project.FitLink.utils.enums.OtpType;
+import com.project.FitLink.utils.enums.auth.OtpType;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;

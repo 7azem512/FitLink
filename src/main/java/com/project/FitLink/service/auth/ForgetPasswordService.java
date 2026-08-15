@@ -8,7 +8,7 @@ import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.PasswordResetTokenRepository;
 import com.project.FitLink.repository.users.UserRepository;
-import com.project.FitLink.utils.enums.OtpType;
+import com.project.FitLink.utils.enums.auth.OtpType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

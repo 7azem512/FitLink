@@ -1,7 +1,7 @@
 package com.project.FitLink.repository.users;
 
 import com.project.FitLink.entities.users.UserEntity;
-import com.project.FitLink.utils.enums.AuthProvider;
+import com.project.FitLink.utils.enums.auth.AuthProvider;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

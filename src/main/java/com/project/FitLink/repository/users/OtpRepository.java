@@ -2,7 +2,7 @@ package com.project.FitLink.repository.users;
 
 import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.UserEntity;
-import com.project.FitLink.utils.enums.OtpType;
+import com.project.FitLink.utils.enums.auth.OtpType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

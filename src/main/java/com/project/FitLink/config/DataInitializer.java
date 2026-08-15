@@ -2,7 +2,7 @@ package com.project.FitLink.config;
 
 import com.project.FitLink.entities.users.Role;
 import com.project.FitLink.repository.users.RoleRepository;
-import com.project.FitLink.utils.enums.Roles;
+import com.project.FitLink.utils.enums.user.Roles;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;

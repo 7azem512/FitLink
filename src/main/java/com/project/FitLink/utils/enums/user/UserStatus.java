@@ -1,4 +1,4 @@
-package com.project.FitLink.utils.enums;
+package com.project.FitLink.utils.enums.user;
 
 public enum UserStatus {
     ACTIVE,

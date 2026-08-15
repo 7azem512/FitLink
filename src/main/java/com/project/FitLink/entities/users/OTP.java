@@ -1,7 +1,7 @@
 package com.project.FitLink.entities.users;
 
 import com.project.FitLink.auditing.AuditEntity;
-import com.project.FitLink.utils.enums.OtpType;
+import com.project.FitLink.utils.enums.auth.OtpType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

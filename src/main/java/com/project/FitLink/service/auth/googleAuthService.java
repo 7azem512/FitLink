@@ -14,9 +14,9 @@ import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
 import com.project.FitLink.utils.FitLinkUtils;
-import com.project.FitLink.utils.enums.AuthProvider;
-import com.project.FitLink.utils.enums.Roles;
-import com.project.FitLink.utils.enums.UserStatus;
+import com.project.FitLink.utils.enums.auth.AuthProvider;
+import com.project.FitLink.utils.enums.user.Roles;
+import com.project.FitLink.utils.enums.user.UserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,7 +32,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 
-import static com.project.FitLink.utils.enums.AuthProvider.GOOGLE;
+import static com.project.FitLink.utils.enums.auth.AuthProvider.GOOGLE;
 
 /**
  * Signs a user in with a verified Google ID token.

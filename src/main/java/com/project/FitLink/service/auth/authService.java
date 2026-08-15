@@ -15,7 +15,7 @@ import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
-import com.project.FitLink.utils.enums.Roles;
+import com.project.FitLink.utils.enums.user.Roles;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

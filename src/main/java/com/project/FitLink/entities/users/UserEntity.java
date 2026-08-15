@@ -1,8 +1,8 @@
 package com.project.FitLink.entities.users;
 
 import com.project.FitLink.auditing.AuditEntity;
-import com.project.FitLink.utils.enums.AuthProvider;
-import com.project.FitLink.utils.enums.UserStatus;
+import com.project.FitLink.utils.enums.auth.AuthProvider;
+import com.project.FitLink.utils.enums.user.UserStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.*;

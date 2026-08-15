@@ -10,15 +10,15 @@ import com.project.FitLink.exception.ErrorCode;
 import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
-import com.project.FitLink.utils.enums.AuthProvider;
-import com.project.FitLink.utils.enums.OtpType;
-import com.project.FitLink.utils.enums.Roles;
+import com.project.FitLink.utils.enums.auth.AuthProvider;
+import com.project.FitLink.utils.enums.auth.OtpType;
+import com.project.FitLink.utils.enums.user.Roles;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.project.FitLink.utils.enums.AuthProvider.LOCAL;
+import static com.project.FitLink.utils.enums.auth.AuthProvider.LOCAL;
 
 @Service
 @RequiredArgsConstructor
