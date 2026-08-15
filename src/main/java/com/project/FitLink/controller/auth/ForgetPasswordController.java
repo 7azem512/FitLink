@@ -1,6 +1,10 @@
 package com.project.FitLink.controller.auth;
 
-import com.project.FitLink.dto.Auth.*;
+import com.project.FitLink.dto.Auth.password.ForgotPasswordRequest;
+import com.project.FitLink.dto.Auth.password.ResetPasswordRequest;
+import com.project.FitLink.dto.Auth.password.VerifyResetOtpRequest;
+import com.project.FitLink.dto.Auth.password.VerifyResetOtpResponse;
+import com.project.FitLink.dto.Auth.register.RegisterResponse;
 import com.project.FitLink.dto.GlobalResponse;
 import com.project.FitLink.service.auth.ForgetPasswordService;
 import io.swagger.v3.oas.annotations.Operation;

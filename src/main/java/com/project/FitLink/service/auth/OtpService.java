@@ -1,8 +1,8 @@
 package com.project.FitLink.service.auth;
 
 import com.project.FitLink.auth.FitLinkUserDetails;
-import com.project.FitLink.dto.Auth.RegisterResponse;
-import com.project.FitLink.dto.Auth.TokenResponse;
+import com.project.FitLink.dto.Auth.login.TokenResponse;
+import com.project.FitLink.dto.Auth.register.RegisterResponse;
 import com.project.FitLink.entities.users.OTP;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.exception.AppException;

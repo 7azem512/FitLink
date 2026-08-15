@@ -1,7 +1,7 @@
 package com.project.FitLink.service.auth;
 
-import com.project.FitLink.dto.Auth.RegisterResponse;
-import com.project.FitLink.dto.Auth.VerifyResetOtpResponse;
+import com.project.FitLink.dto.Auth.password.VerifyResetOtpResponse;
+import com.project.FitLink.dto.Auth.register.RegisterResponse;
 import com.project.FitLink.entities.users.PasswordResetToken;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.exception.AppException;

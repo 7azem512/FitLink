@@ -1,7 +1,7 @@
 package com.project.FitLink.service.auth;
 
-import com.project.FitLink.dto.Auth.RegisterRequest;
-import com.project.FitLink.dto.Auth.RegisterResponse;
+import com.project.FitLink.dto.Auth.register.RegisterRequest;
+import com.project.FitLink.dto.Auth.register.RegisterResponse;
 import com.project.FitLink.entities.users.Role;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.entities.users.UserRole;

@@ -1,4 +1,4 @@
-package com.project.FitLink.dto.Auth;
+package com.project.FitLink.dto.Auth.login;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;

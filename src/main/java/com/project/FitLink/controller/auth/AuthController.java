@@ -1,6 +1,14 @@
 package com.project.FitLink.controller.auth;
 
-import com.project.FitLink.dto.Auth.*;
+import com.project.FitLink.dto.Auth.login.GoogleLoginRequest;
+import com.project.FitLink.dto.Auth.login.LoginRequest;
+import com.project.FitLink.dto.Auth.login.TokenResponse;
+import com.project.FitLink.dto.Auth.refresh.RefreshRequest;
+import com.project.FitLink.dto.Auth.refresh.RefreshResponse;
+import com.project.FitLink.dto.Auth.register.RegisterRequest;
+import com.project.FitLink.dto.Auth.register.RegisterResponse;
+import com.project.FitLink.dto.Auth.role.SelectRoleRequest;
+import com.project.FitLink.dto.Auth.role.SelectRoleResponse;
 import com.project.FitLink.dto.GlobalResponse;
 import com.project.FitLink.service.auth.OtpService;
 import com.project.FitLink.service.auth.UserService;

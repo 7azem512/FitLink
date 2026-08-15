@@ -1,17 +1,26 @@
 package com.project.FitLink.service.auth;
 
 import com.project.FitLink.auth.FitLinkUserDetails;
-import com.project.FitLink.dto.Auth.LoginRequest;
-import com.project.FitLink.dto.Auth.RefreshResponse;
-import com.project.FitLink.dto.Auth.RegisterResponse;
-import com.project.FitLink.dto.Auth.SelectRoleRequest;
-import com.project.FitLink.dto.Auth.SelectRoleResponse;
-import com.project.FitLink.dto.Auth.TokenResponse;
+import com.project.FitLink.dto.Auth.login.LoginRequest;
+import com.project.FitLink.dto.Auth.login.TokenResponse;
+import com.project.FitLink.dto.Auth.refresh.RefreshResponse;
+import com.project.FitLink.dto.Auth.register.RegisterResponse;
+import com.project.FitLink.dto.Auth.role.CoachProfileRequest;
+import com.project.FitLink.dto.Auth.role.GymProfileRequest;
+import com.project.FitLink.dto.Auth.role.SelectRoleRequest;
+import com.project.FitLink.dto.Auth.role.SelectRoleResponse;
+import com.project.FitLink.dto.Auth.role.TraineeProfileRequest;
+import com.project.FitLink.entities.roles.CoachProfile;
+import com.project.FitLink.entities.roles.GymProfile;
+import com.project.FitLink.entities.roles.TraineeProfile;
 import com.project.FitLink.entities.users.UserEntity;
 import com.project.FitLink.entities.users.Role;
 import com.project.FitLink.entities.users.UserRole;
 import com.project.FitLink.exception.AppException;
 import com.project.FitLink.exception.ErrorCode;
+import com.project.FitLink.repository.roles.CoachProfileRepository;
+import com.project.FitLink.repository.roles.GymProfileRepository;
+import com.project.FitLink.repository.roles.TraineeProfileRepository;
 import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
@@ -28,6 +37,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +53,9 @@ public class authService {
     private final UserRepository userRepository;
     private final UserRoleRepository userRoleRepository;
     private final RoleRepository roleRepository;
+    private final CoachProfileRepository coachProfileRepository;
+    private final GymProfileRepository gymProfileRepository;
+    private final TraineeProfileRepository traineeProfileRepository;
 
     /**
      * Authenticates a user and generates access and refresh tokens.
@@ -179,6 +193,14 @@ public class authService {
         unassignedRole.setRole(newRoleEntity);
         userRoleRepository.save(unassignedRole);
 
+        // Create the role-specific profile
+        switch (newRole) {
+            case TRAINEE -> createTraineeProfile(user, selectRoleRequest);
+            case GYM -> createGymProfile(user, selectRoleRequest);
+            case COACH -> createCoachProfile(user, selectRoleRequest);
+            default -> throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+        }
+
         String newAccessToken  = jwtService.generateAccessToken(user);
         String newRefreshToken = jwtService.generateRefreshToken(user);
 
@@ -190,5 +212,105 @@ public class authService {
                 .refreshToken(newRefreshToken)
                 .message("Role updated successfully.")
                 .build();
+    }
+
+    private void createCoachProfile(UserEntity user, SelectRoleRequest request) {
+        CoachProfileRequest dto = request.getCoachProfile();
+        if (dto == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Coach profile data is required");
+        }
+
+        GymProfile currentGym = null;
+        if (dto.getCurrentGymId() != null) {
+            currentGym = gymProfileRepository.findById(dto.getCurrentGymId())
+                    .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Gym not found"));
+        }
+
+        CoachProfile profile = CoachProfile.builder()
+                .id(user.getPublicId())
+                .user(user)
+                .nationality(dto.getNationality())
+                .city(dto.getCity())
+                .gender(dto.getGender())
+                .heightCm(dto.getHeightCm())
+                .weightKg(dto.getWeightKg())
+                .birthday(dto.getBirthday())
+                .yearsOfExperience(dto.getYearsOfExperience())
+                .languageSpoken(dto.getLanguageSpoken())
+                .currentGym(currentGym)
+                .specializations(dto.getSpecializations() != null
+                        ? new HashSet<>(dto.getSpecializations())
+                        : new HashSet<>())
+                .certifications(dto.getCertifications() != null
+                        ? new ArrayList<>(dto.getCertifications())
+                        : new ArrayList<>())
+                .bio(dto.getBio())
+                .build();
+        coachProfileRepository.save(profile);
+
+        log.info("Coach profile created for user: {}", user.getEmail());
+    }
+
+    private void createGymProfile(UserEntity user, SelectRoleRequest request) {
+        GymProfileRequest dto = request.getGymProfile();
+        if (dto == null || dto.getGymName() == null || dto.getGymName().isBlank()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Gym profile data is required");
+        }
+
+        GymProfile profile = GymProfile.builder()
+                .id(user.getPublicId())
+                .user(user)
+                .gymName(dto.getGymName())
+                .gymType(dto.getGymType())
+                .gymType(dto.getGymType())
+                .establishYear(dto.getEstablishYear())
+                .description(dto.getDescription())
+                .country(dto.getCountry())
+                .city(dto.getCity())
+                .area(dto.getArea())
+                .googleMapsUrl(dto.getGoogleMapsUrl())
+                .phoneNumber(dto.getPhoneNumber())
+                .whatsapp(dto.getWhatsapp())
+                .websiteUrl(dto.getWebsiteUrl())
+                .openingTime(dto.getOpeningTime())
+                .closingTime(dto.getClosingTime())
+                .workingDays(dto.getWorkingDays() != null
+                        ? new HashSet<>(dto.getWorkingDays())
+                        : new HashSet<>())
+                .facilities(dto.getFacilities() != null
+                        ? new ArrayList<>(dto.getFacilities())
+                        : new ArrayList<>())
+                .commercialRegistration(dto.getCommercialRegistration())
+                .taxCard(dto.getTaxCard())
+                .ownerId(dto.getOwnerId())
+                .build();
+        gymProfileRepository.save(profile);
+
+        log.info("Gym profile created for user: {}", user.getEmail());
+    }
+
+    private void createTraineeProfile(UserEntity user, SelectRoleRequest request) {
+        TraineeProfileRequest dto = request.getTraineeProfile();
+        if (dto == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Trainee profile data is required");
+        }
+
+        TraineeProfile profile = TraineeProfile.builder()
+                .id(user.getPublicId())
+                .user(user)
+                .gender(dto.getGender())
+                .heightCm(dto.getHeightCm())
+                .weightKg(dto.getWeightKg())
+                .birthday(dto.getBirthday())
+                .goal(dto.getGoal())
+                .activityLevel(dto.getActivityLevel())
+                .workingFrequency(dto.getWorkingFrequency())
+                .preferredTraining(dto.getPreferredTraining())
+                .preferredWorkoutTime(dto.getPreferredWorkoutTime())
+                .location(dto.getLocation())
+                .build();
+        traineeProfileRepository.save(profile);
+
+        log.info("Trainee profile created for user: {}", user.getEmail());
     }
 }
