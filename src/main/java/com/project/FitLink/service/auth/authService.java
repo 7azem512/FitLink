@@ -39,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Optional;
+import java.util.Locale;
 import java.util.UUID;
 
 
@@ -153,45 +153,36 @@ public class authService {
     }
 
     @Transactional
-    public SelectRoleResponse selectRole(SelectRoleRequest selectRoleRequest) {
+    public SelectRoleResponse assignRole(SelectRoleRequest selectRoleRequest) {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        if (!(principal instanceof FitLinkUserDetails)) {
+        if (!(principal instanceof FitLinkUserDetails currentUser)) {
             throw new AppException(ErrorCode.UNAUTHORIZED, "Invalid authentication. User details not found.");
         }
-
-        FitLinkUserDetails currentUser = (FitLinkUserDetails) principal;
 
         UserEntity user = userRepository.findByPublicId(currentUser.getPublicId())
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
 
-        // Check if the user's current role is UNASSIGNED
-        Optional<UserRole> unassignedRoleOpt = user.getRoles().stream()
-                .filter(userRole -> userRole.getRole().getRoleCode() == Roles.UNASSIGNED)
-                .findFirst();
+        Roles newRole = parseSelectableRole(selectRoleRequest.getRole());
 
-        if (unassignedRoleOpt.isEmpty()) {
-            throw new AppException(ErrorCode.ROLE_ALREADY_ASSIGNED, "Role already assigned. Cannot change role.");
+        // Inspect the user's roles in a single pass:
+        // - an existing UNASSIGNED role means assignment is allowed;
+        // - holding the requested role already means there is nothing to assign.
+        UserRole unassignedRole = null;
+        boolean hasRequestedRole = false;
+        for (UserRole userRole : user.getRoles()) {
+            Roles roleCode = userRole.getRole().getRoleCode();
+            if (roleCode == Roles.UNASSIGNED) {
+                unassignedRole = userRole;
+            } else if (roleCode == newRole) {
+                hasRequestedRole = true;
+            }
         }
 
-        // Validate requested role against allowed values (TRAINEE, COACH, GYM)
-        Roles newRole;
-        try {
-            newRole = Roles.valueOf(selectRoleRequest.getRole().toUpperCase(java.util.Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+        // The user already holds the requested role -> nothing to do.
+        if (hasRequestedRole) {
+            throw new AppException(ErrorCode.ROLE_ALREADY_ASSIGNED, "You already have this role. Try to login again");
         }
-
-        if (newRole == Roles.ADMIN || newRole == Roles.SYSTEM || newRole == Roles.UNASSIGNED || newRole == Roles.USER) {
-            throw new AppException(ErrorCode.ROLE_NOT_ALLOWED, "Cannot select this role.");
-        }
-
-        // Update the user's role
-        Role newRoleEntity = roleRepository.findByRoleCode(newRole)
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_ROLE, "Role not found in database."));
-        UserRole unassignedRole = unassignedRoleOpt.get();
-        unassignedRole.setRole(newRoleEntity);
-        userRoleRepository.save(unassignedRole);
 
         // Create the role-specific profile
         switch (newRole) {
@@ -200,6 +191,22 @@ public class authService {
             case COACH -> createCoachProfile(user, selectRoleRequest);
             default -> throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
         }
+
+        // A profile was created, so the UNASSIGNED role is no longer needed.
+        if (unassignedRole != null) {
+            user.getRoles().remove(unassignedRole);
+            userRoleRepository.delete(unassignedRole);
+        }
+
+        // Grant the requested role.
+        Role newRoleEntity = roleRepository.findByRoleCode(newRole)
+                .orElseThrow(() -> new AppException(ErrorCode.INVALID_ROLE, "Role not found in database."));
+        UserRole newUserRole = UserRole.builder()
+                .user(user)
+                .role(newRoleEntity)
+                .build();
+        user.getRoles().add(newUserRole);
+        userRoleRepository.save(newUserRole);
 
         String newAccessToken  = jwtService.generateAccessToken(user);
         String newRefreshToken = jwtService.generateRefreshToken(user);
@@ -212,6 +219,24 @@ public class authService {
                 .refreshToken(newRefreshToken)
                 .message("Role updated successfully.")
                 .build();
+    }
+
+    private Roles parseSelectableRole(String rawRole) {
+        if (rawRole == null || rawRole.isBlank()) {
+            throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+        }
+
+        Roles role;
+        try {
+            role = Roles.valueOf(rawRole.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+        }
+
+        if (role == Roles.ADMIN || role == Roles.SYSTEM || role == Roles.UNASSIGNED || role == Roles.USER) {
+            throw new AppException(ErrorCode.ROLE_NOT_ALLOWED, "Cannot select this role.");
+        }
+        return role;
     }
 
     private void createCoachProfile(UserEntity user, SelectRoleRequest request) {
@@ -261,7 +286,6 @@ public class authService {
                 .id(user.getPublicId())
                 .user(user)
                 .gymName(dto.getGymName())
-                .gymType(dto.getGymType())
                 .gymType(dto.getGymType())
                 .establishYear(dto.getEstablishYear())
                 .description(dto.getDescription())

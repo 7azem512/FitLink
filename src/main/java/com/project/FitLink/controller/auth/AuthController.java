@@ -115,7 +115,7 @@ public class AuthController {
             security = @SecurityRequirement(name = "bearerAuth"))
     @PatchMapping("/select-role")
     public ResponseEntity<Map<String, Object>> selectRole(@RequestBody @Valid SelectRoleRequest selectRoleRequest) {
-        SelectRoleResponse result = authService.selectRole(selectRoleRequest);
+        SelectRoleResponse result = authService.assignRole(selectRoleRequest);
         GlobalResponse response = new GlobalResponse();
         response.addMessage("message", result.getMessage());
         response.addMessage("role", result.getRole());
