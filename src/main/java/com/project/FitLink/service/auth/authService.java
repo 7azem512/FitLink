@@ -24,6 +24,8 @@ import com.project.FitLink.repository.roles.TraineeProfileRepository;
 import com.project.FitLink.repository.users.RoleRepository;
 import com.project.FitLink.repository.users.UserRepository;
 import com.project.FitLink.repository.users.UserRoleRepository;
+import com.project.FitLink.service.fileStorage.StorageService;
+import com.project.FitLink.utils.enums.storage.StorageFolder;
 import com.project.FitLink.utils.enums.user.Roles;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
@@ -36,9 +38,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -56,6 +60,7 @@ public class authService {
     private final CoachProfileRepository coachProfileRepository;
     private final GymProfileRepository gymProfileRepository;
     private final TraineeProfileRepository traineeProfileRepository;
+    private final StorageService storageService;
 
     /**
      * Authenticates a user and generates access and refresh tokens.
@@ -184,12 +189,19 @@ public class authService {
             throw new AppException(ErrorCode.ROLE_ALREADY_ASSIGNED, "You already have this role. Try to login again");
         }
 
-        // Create the role-specific profile
-        switch (newRole) {
-            case TRAINEE -> createTraineeProfile(user, selectRoleRequest);
-            case GYM -> createGymProfile(user, selectRoleRequest);
-            case COACH -> createCoachProfile(user, selectRoleRequest);
-            default -> throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+        // Create the role-specific profile (uploads any files sent in the request).
+        List<String> uploadedUrls = new ArrayList<>();
+        try {
+            switch (newRole) {
+                case TRAINEE -> uploadedUrls.addAll(createTraineeProfile(user, selectRoleRequest));
+                case GYM -> uploadedUrls.addAll(createGymProfile(user, selectRoleRequest));
+                case COACH -> uploadedUrls.addAll(createCoachProfile(user, selectRoleRequest));
+                default -> throw new AppException(ErrorCode.INVALID_ROLE, "Invalid role specified. Allowed values are TRAINEE, COACH, GYM.");
+            }
+        } catch (RuntimeException e) {
+            // Compensate: remove objects already stored so no orphaned files are left in storage.
+            uploadedUrls.forEach(storageService::deleteByUrl);
+            throw e;
         }
 
         // A profile was created, so the UNASSIGNED role is no longer needed.
@@ -239,17 +251,27 @@ public class authService {
         return role;
     }
 
-    private void createCoachProfile(UserEntity user, SelectRoleRequest request) {
+    /**
+     * Creates the coach profile, uploading the CV and intro video (if sent) to storage.
+     *
+     * @return the URLs of the objects uploaded by this call (used for rollback on failure)
+     */
+    private List<String> createCoachProfile(UserEntity user, SelectRoleRequest request) {
         CoachProfileRequest dto = request.getCoachProfile();
         if (dto == null) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Coach profile data is required");
         }
+
+        List<String> uploadedUrls = new ArrayList<>();
 
         GymProfile currentGym = null;
         if (dto.getCurrentGymId() != null) {
             currentGym = gymProfileRepository.findById(dto.getCurrentGymId())
                     .orElseThrow(() -> new AppException(ErrorCode.NOT_FOUND, "Gym not found"));
         }
+
+        String cvUrl = uploadIfPresent(dto.getCv(), StorageFolder.COACH_CV, uploadedUrls);
+        String introVideoUrl = uploadIfPresent(dto.getIntroVideo(), StorageFolder.COACH_INTRO_VIDEO, uploadedUrls);
 
         CoachProfile profile = CoachProfile.builder()
                 .id(user.getPublicId())
@@ -270,28 +292,38 @@ public class authService {
                         ? new ArrayList<>(dto.getCertifications())
                         : new ArrayList<>())
                 .bio(dto.getBio())
-                // Public URLs previously obtained from POST /storage/upload (COACH_CV / COACH_INTRO_VIDEO).
-                .cvUrl(dto.getCvUrl())
-                .introVideoUrl(dto.getIntroVideoUrl())
+                .cvUrl(cvUrl)
+                .introVideoUrl(introVideoUrl)
                 .build();
         coachProfileRepository.save(profile);
 
         log.info("Coach profile created for user: {}", user.getEmail());
+        return uploadedUrls;
     }
 
-    private void createGymProfile(UserEntity user, SelectRoleRequest request) {
+    /**
+     * Creates the gym profile, uploading the logo, cover and gallery images (if sent) to storage.
+     *
+     * @return the URLs of the objects uploaded by this call (used for rollback on failure)
+     */
+    private List<String> createGymProfile(UserEntity user, SelectRoleRequest request) {
         GymProfileRequest dto = request.getGymProfile();
         if (dto == null || dto.getGymName() == null || dto.getGymName().isBlank()) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Gym profile data is required");
         }
 
+        List<String> uploadedUrls = new ArrayList<>();
+        String logoUrl = uploadIfPresent(dto.getLogo(), StorageFolder.GYM_LOGO, uploadedUrls);
+        String coverUrl = uploadIfPresent(dto.getCover(), StorageFolder.GYM_COVER, uploadedUrls);
+        List<String> galleryUrls = storageService.uploadAll(dto.getGallery(), StorageFolder.GYM_GALLERY);
+        uploadedUrls.addAll(galleryUrls);
+
         GymProfile profile = GymProfile.builder()
                 .id(user.getPublicId())
                 .user(user)
-                // Public URLs previously obtained from POST /storage/upload (GYM_LOGO / GYM_COVER).
-                .logoUrl(dto.getLogoUrl())
+                .logoUrl(logoUrl)
                 .gymName(dto.getGymName())
-                .coverImageUrl(dto.getCoverImageUrl())
+                .coverImageUrl(coverUrl)
                 .gymType(dto.getGymType())
                 .establishYear(dto.getEstablishYear())
                 .description(dto.getDescription())
@@ -310,10 +342,7 @@ public class authService {
                 .facilities(dto.getFacilities() != null
                         ? new ArrayList<>(dto.getFacilities())
                         : new ArrayList<>())
-                // URLs previously obtained from POST /storage/upload-many (GYM_GALLERY).
-                .additionalImages(dto.getAdditionalImages() != null
-                        ? new ArrayList<>(dto.getAdditionalImages())
-                        : new ArrayList<>())
+                .additionalImages(new ArrayList<>(galleryUrls))
                 .commercialRegistration(dto.getCommercialRegistration())
                 .taxCard(dto.getTaxCard())
                 .ownerId(dto.getOwnerId())
@@ -321,19 +350,27 @@ public class authService {
         gymProfileRepository.save(profile);
 
         log.info("Gym profile created for user: {}", user.getEmail());
+        return uploadedUrls;
     }
 
-    private void createTraineeProfile(UserEntity user, SelectRoleRequest request) {
+    /**
+     * Creates the trainee profile, uploading the avatar (if sent) to storage.
+     *
+     * @return the URLs of the objects uploaded by this call (used for rollback on failure)
+     */
+    private List<String> createTraineeProfile(UserEntity user, SelectRoleRequest request) {
         TraineeProfileRequest dto = request.getTraineeProfile();
         if (dto == null) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Trainee profile data is required");
         }
 
+        List<String> uploadedUrls = new ArrayList<>();
+        String avatarUrl = uploadIfPresent(dto.getAvatar(), StorageFolder.TRAINEE_AVATAR, uploadedUrls);
+
         TraineeProfile profile = TraineeProfile.builder()
                 .id(user.getPublicId())
                 .user(user)
-                // Public URL previously obtained from POST /storage/upload (TRAINEE_AVATAR).
-                .profileImageUrl(dto.getProfileImageUrl())
+                .profileImageUrl(avatarUrl)
                 .gender(dto.getGender())
                 .heightCm(dto.getHeightCm())
                 .weightKg(dto.getWeightKg())
@@ -348,5 +385,19 @@ public class authService {
         traineeProfileRepository.save(profile);
 
         log.info("Trainee profile created for user: {}", user.getEmail());
+        return uploadedUrls;
+    }
+
+    /**
+     * Uploads a file only when it was actually provided; returns the public URL or null.
+     * Tracks every uploaded URL so {@code assignRole} can remove them if the transaction fails.
+     */
+    private String uploadIfPresent(MultipartFile file, StorageFolder folder, List<String> uploadedUrls) {
+        if (file == null || file.isEmpty()) {
+            return null;
+        }
+        String url = storageService.upload(file, folder);
+        uploadedUrls.add(url);
+        return url;
     }
 }

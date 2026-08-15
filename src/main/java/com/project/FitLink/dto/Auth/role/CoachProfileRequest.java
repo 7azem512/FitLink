@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -46,10 +47,8 @@ public class CoachProfileRequest {
 
     private String bio;
 
-    // Public URLs returned by POST /storage/upload (COACH_CV / COACH_INTRO_VIDEO).
-    @Size(max = 500, message = "CV URL must not exceed 500 characters")
-    private String cvUrl;
+    // Uploaded as file parts within the same multipart request; stored under COACH_CV / COACH_INTRO_VIDEO.
+    private MultipartFile cv;
 
-    @Size(max = 500, message = "Intro video URL must not exceed 500 characters")
-    private String introVideoUrl;
+    private MultipartFile introVideo;
 }

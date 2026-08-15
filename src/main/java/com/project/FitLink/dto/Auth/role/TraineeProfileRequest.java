@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 
@@ -19,9 +20,8 @@ import java.time.LocalDate;
 @Schema(description = "Profile data required when selecting the TRAINEE role")
 public class TraineeProfileRequest {
 
-    // Public URL returned by POST /storage/upload for StorageFolder.TRAINEE_AVATAR.
-    @Size(max = 500, message = "Profile image URL must not exceed 500 characters")
-    private String profileImageUrl;
+    // Uploaded as a file part within the same multipart request; stored under TRAINEE_AVATAR.
+    private MultipartFile avatar;
 
     private Gender gender;
 

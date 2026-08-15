@@ -24,6 +24,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -111,10 +112,16 @@ public class AuthController {
     }
 
     @Operation(summary = "Select user role",
-            description = "Assigns a role (TRAINEE, COACH, or GYM) to a newly verified user whose current role is UNASSIGNED. Can only be called once. Invalidates previous tokens and returns new ones.",
+            description = """
+                    Assigns a role (TRAINEE, COACH, or GYM) to a newly verified user whose current role is UNASSIGNED.
+                    Sent as multipart form-data: the profile fields are form fields (role, coachProfile.*, gymProfile.*, traineeProfile.*)
+                    and profile files are uploaded as file parts in the same request (traineeProfile.avatar, gymProfile.logo,
+                    gymProfile.cover, gymProfile.gallery (repeatable), coachProfile.cv, coachProfile.introVideo).
+                    Files are stored to Supabase S3 and the resulting URLs are persisted on the profile. Returns new tokens.
+                    """,
             security = @SecurityRequirement(name = "bearerAuth"))
-    @PatchMapping("/select-role")
-    public ResponseEntity<Map<String, Object>> selectRole(@RequestBody @Valid SelectRoleRequest selectRoleRequest) {
+    @PatchMapping(value = "/select-role", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Map<String, Object>> selectRole(@ModelAttribute @Valid SelectRoleRequest selectRoleRequest) {
         SelectRoleResponse result = authService.assignRole(selectRoleRequest);
         GlobalResponse response = new GlobalResponse();
         response.addMessage("message", result.getMessage());

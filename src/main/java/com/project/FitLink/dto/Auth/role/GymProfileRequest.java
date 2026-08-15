@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
 import java.time.LocalTime;
@@ -17,12 +18,10 @@ import java.util.Set;
 @Schema(description = "Profile data required when selecting the GYM role")
 public class GymProfileRequest {
 
-    // Public URLs returned by POST /storage/upload (GYM_LOGO / GYM_COVER / GYM_GALLERY).
-    @Size(max = 500, message = "Logo URL must not exceed 500 characters")
-    private String logoUrl;
+    // Uploaded as file parts within the same multipart request; stored under GYM_LOGO / GYM_COVER / GYM_GALLERY.
+    private MultipartFile logo;
 
-    @Size(max = 500, message = "Cover image URL must not exceed 500 characters")
-    private String coverImageUrl;
+    private MultipartFile cover;
 
     @NotBlank(message = "Gym name is required")
     @Size(min = 3, max = 100)
@@ -72,6 +71,6 @@ public class GymProfileRequest {
     @Size(max = 100)
     private String ownerId;
 
-    // URLs returned by POST /storage/upload-many (GYM_GALLERY), one per gallery image.
-    private List<String> additionalImages;
+    // Multiple file parts with the same name, stored under GYM_GALLERY (gym_additional_images).
+    private List<MultipartFile> gallery;
 }

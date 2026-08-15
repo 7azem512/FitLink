@@ -17,6 +17,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import lombok.extern.slf4j.Slf4j;
@@ -183,6 +184,16 @@ public class GlobalExceptionHandler{
 
         logExpected(ErrorCode.VALIDATION_ERROR, request);
         return buildErrorResponse(ErrorCode.VALIDATION_ERROR, "Request validation failed", errors, request);
+    }
+
+    // e.g. a JSON request sent to a multipart-only endpoint (select-role).
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.UNSUPPORTED_MEDIA_TYPE, request);
+        return buildErrorResponse(ErrorCode.UNSUPPORTED_MEDIA_TYPE, "Request content type is not supported", request);
     }
 
     // Thrown by the servlet container when a multipart request exceeds the configured limits.
