@@ -28,6 +28,11 @@ public enum ErrorCode {
     ROLE_NOT_ALLOWED(HttpStatus.FORBIDDEN),
     GOOGLE_AUTH_FAILED(HttpStatus.UNAUTHORIZED),
     ACCOUNT_CONFLICT(HttpStatus.CONFLICT),
+    // ===== Storage =====
+    UNSUPPORTED_FILE_TYPE(HttpStatus.BAD_REQUEST),
+    FILE_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE),
+    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR),
+    STORAGE_DELETE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final HttpStatus status;

@@ -19,6 +19,10 @@ import java.time.LocalDate;
 @Schema(description = "Profile data required when selecting the TRAINEE role")
 public class TraineeProfileRequest {
 
+    // Public URL returned by POST /storage/upload for StorageFolder.TRAINEE_AVATAR.
+    @Size(max = 500, message = "Profile image URL must not exceed 500 characters")
+    private String profileImageUrl;
+
     private Gender gender;
 
     private Double heightCm;

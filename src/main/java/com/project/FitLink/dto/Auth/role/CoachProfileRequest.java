@@ -45,4 +45,11 @@ public class CoachProfileRequest {
     private List<String> certifications;
 
     private String bio;
+
+    // Public URLs returned by POST /storage/upload (COACH_CV / COACH_INTRO_VIDEO).
+    @Size(max = 500, message = "CV URL must not exceed 500 characters")
+    private String cvUrl;
+
+    @Size(max = 500, message = "Intro video URL must not exceed 500 characters")
+    private String introVideoUrl;
 }

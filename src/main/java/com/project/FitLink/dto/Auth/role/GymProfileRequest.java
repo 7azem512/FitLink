@@ -17,6 +17,13 @@ import java.util.Set;
 @Schema(description = "Profile data required when selecting the GYM role")
 public class GymProfileRequest {
 
+    // Public URLs returned by POST /storage/upload (GYM_LOGO / GYM_COVER / GYM_GALLERY).
+    @Size(max = 500, message = "Logo URL must not exceed 500 characters")
+    private String logoUrl;
+
+    @Size(max = 500, message = "Cover image URL must not exceed 500 characters")
+    private String coverImageUrl;
+
     @NotBlank(message = "Gym name is required")
     @Size(min = 3, max = 100)
     private String gymName;
@@ -64,4 +71,7 @@ public class GymProfileRequest {
 
     @Size(max = 100)
     private String ownerId;
+
+    // URLs returned by POST /storage/upload-many (GYM_GALLERY), one per gallery image.
+    private List<String> additionalImages;
 }

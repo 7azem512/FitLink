@@ -270,6 +270,9 @@ public class authService {
                         ? new ArrayList<>(dto.getCertifications())
                         : new ArrayList<>())
                 .bio(dto.getBio())
+                // Public URLs previously obtained from POST /storage/upload (COACH_CV / COACH_INTRO_VIDEO).
+                .cvUrl(dto.getCvUrl())
+                .introVideoUrl(dto.getIntroVideoUrl())
                 .build();
         coachProfileRepository.save(profile);
 
@@ -285,7 +288,10 @@ public class authService {
         GymProfile profile = GymProfile.builder()
                 .id(user.getPublicId())
                 .user(user)
+                // Public URLs previously obtained from POST /storage/upload (GYM_LOGO / GYM_COVER).
+                .logoUrl(dto.getLogoUrl())
                 .gymName(dto.getGymName())
+                .coverImageUrl(dto.getCoverImageUrl())
                 .gymType(dto.getGymType())
                 .establishYear(dto.getEstablishYear())
                 .description(dto.getDescription())
@@ -303,6 +309,10 @@ public class authService {
                         : new HashSet<>())
                 .facilities(dto.getFacilities() != null
                         ? new ArrayList<>(dto.getFacilities())
+                        : new ArrayList<>())
+                // URLs previously obtained from POST /storage/upload-many (GYM_GALLERY).
+                .additionalImages(dto.getAdditionalImages() != null
+                        ? new ArrayList<>(dto.getAdditionalImages())
                         : new ArrayList<>())
                 .commercialRegistration(dto.getCommercialRegistration())
                 .taxCard(dto.getTaxCard())
@@ -322,6 +332,8 @@ public class authService {
         TraineeProfile profile = TraineeProfile.builder()
                 .id(user.getPublicId())
                 .user(user)
+                // Public URL previously obtained from POST /storage/upload (TRAINEE_AVATAR).
+                .profileImageUrl(dto.getProfileImageUrl())
                 .gender(dto.getGender())
                 .heightCm(dto.getHeightCm())
                 .weightKg(dto.getWeightKg())

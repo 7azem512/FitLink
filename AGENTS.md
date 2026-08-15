@@ -1,6 +1,6 @@
 # AGENTS.md
 
-FitLink backend: Spring Boot 4.0.6, Java 21, Maven. Stateless JWT auth (access 1h / refresh 30d, `Constants.java`), PostgreSQL on Supabase, springdoc Swagger, Guava rate limiting.
+FitLink backend: Spring Boot 4.0.6, Java 21, Maven. Stateless JWT auth (access 1h / refresh 30d, `Constants.java`), PostgreSQL on Supabase, Supabase S3 storage, springdoc Swagger, Guava rate limiting.
 
 ## Build & run
 
@@ -21,9 +21,22 @@ FitLink backend: Spring Boot 4.0.6, Java 21, Maven. Stateless JWT auth (access 1
 - `selectRole` and password reset no longer invalidate old tokens.
 - **`FLOWS.md`, `IMPROVEMENTS.md`, `PERFORMANCE_AUTH_IMPROVEMENTS.md` are stale** (still document `token_version`, token invalidation, old OTP flow). Trust the code; treat them as design history only.
 
+## Role profile architecture
+
+- Each selectable role (`TRAINEE`, `COACH`, `GYM`) has a profile entity in `entities/roles/` (`TraineeProfile`, `CoachProfile`, `GymProfile`) plus a matching repository in `repository/roles/`. The profile PK equals the user's `publicId` (UUID, assigned manually — no `@GeneratedValue`); the `user` relation stays FK `user_id → users.id`.
+- Profile creation happens inside `authService.assignRole` (`/auth/select-role`), `@Transactional` with the role assignment. New role flow: if the user already holds the requested role → `ROLE_ALREADY_ASSIGNED` ("already have this role, login again"); otherwise create the profile, **delete the `UNASSIGNED` role row**, and add a `user_role` row for the requested role. A user can therefore accumulate multiple roles/profiles (each is `@OneToOne` on the user, so at most one profile per role).
+- Enums live in domain subpackages under `utils/enums/` (`auth/`, `user/`, `coach/`, `gym/`, `trainee/`); DTOs under `dto/Auth/` domain subpackages (`role/`, `register/`, `login/`, `refresh/`, `password/`).
+
+## Storage (Supabase S3)
+
+- `service/fileStorage/StorageService` wraps the S3 client (bean in `config/SupabaseStorageConfig`, path-style). Upload flow: client calls `POST /storage/upload` (multipart `file` + `folder`, **authenticated**) → service validates (empty/size/content-type) → stores at `{bucket}/{folder.path}/{uuid}{ext}` → returns the **public URL**; the client then sends that URL inside the JSON profile request (`/auth/select-role`) and it is persisted on the entity.
+- Folders + allowed content types are defined in `utils/enums/storage/StorageFolder` (`trainee/avatar`, `gym/logo`, `gym/cover`, `gym/gallery`, `coach/cv`, `coach/intro-video`). Bulk upload via `POST /storage/upload-many` (returns `urls`, used for `gym_additional_images`).
+- Delete: `StorageService.delete(key)` / `deleteByUrl(url)`. Storage errors use `ErrorCode`: `UNSUPPORTED_FILE_TYPE` (400), `FILE_TOO_LARGE` (413, also mapped from `MaxUploadSizeExceededException`), `STORAGE_UPLOAD_FAILED`/`STORAGE_DELETE_FAILED` (500).
+- Env vars: `SUPABASE_S3_ENDPOINT`, `SUPABASE_S3_REGION`, `SUPABASE_S3_ACCESS_KEY`, `SUPABASE_S3_SECRET_KEY`, `SUPABASE_S3_BUCKET`, `SUPABASE_URL` (used to build public URLs), plus multipart limits `MULTIPART_MAX_FILE_SIZE`/`MULTIPART_MAX_REQUEST_SIZE` (defaults 10MB/20MB) — see `.env.example`.
+
 ## Conventions & gotchas
 
-- Service classes use a **lowercase first letter**: `jwtService`, `authService`, `otpService`. Keep it consistent.
+- Service classes use a **lowercase first letter**: `jwtService`, `authService`, `otpService`. Keep it consistent (`StorageService` is the one deliberate exception).
 - Errors: throw `exception/AppException(ErrorCode, message)`; add new codes to `exception/ErrorCode.java`. One response body via `exception/GlobalExceptionHandler` + `ErrorResponseWriter`.
 - Public endpoints are **hardcoded** in `config/SecurityConfig.java` (auth flows, swagger, `/home/**`). Add new public routes there.
 - Lombok is used throughout (`@RequiredArgsConstructor`, builders). `maven-compiler-plugin` has the annotation processor path configured.

@@ -18,6 +18,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Arrays;
@@ -182,6 +183,16 @@ public class GlobalExceptionHandler{
 
         logExpected(ErrorCode.VALIDATION_ERROR, request);
         return buildErrorResponse(ErrorCode.VALIDATION_ERROR, "Request validation failed", errors, request);
+    }
+
+    // Thrown by the servlet container when a multipart request exceeds the configured limits.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex,
+            HttpServletRequest request
+    ) {
+        logExpected(ErrorCode.FILE_TOO_LARGE, request);
+        return buildErrorResponse(ErrorCode.FILE_TOO_LARGE, "The uploaded file exceeds the maximum allowed size", request);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
