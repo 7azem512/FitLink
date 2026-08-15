@@ -1,7 +1,7 @@
 package com.project.FitLink.repository.users;
 
 import com.project.FitLink.entities.users.Role;
-import com.project.FitLink.utils.enums.Roles;
+import com.project.FitLink.utils.enums.user.Roles;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

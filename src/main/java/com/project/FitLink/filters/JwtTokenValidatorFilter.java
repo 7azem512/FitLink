@@ -1,8 +1,8 @@
 package com.project.FitLink.filters;
 
 import com.project.FitLink.exception.ErrorCode;
-import com.project.FitLink.exception.ErrorResponseWriter;
-import com.project.FitLink.service.TokenAuthenticationService;
+import com.project.FitLink.exception.handlers.ErrorResponseWriter;
+import com.project.FitLink.service.auth.TokenAuthenticationService;
 import com.project.FitLink.utils.Constants;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
