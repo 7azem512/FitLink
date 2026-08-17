@@ -114,4 +114,9 @@ public class GymProfile extends AuditEntity {
     @OrderColumn(name = "position")
     @Column(name = "image_url", length = 500)
     private List<String> additionalImages = new ArrayList<>();
+
+    // Inverse side of CoachProfile.currentGym — lets you read gym.getCoaches().
+    // The FK (current_gym_id) lives on the coach_profile table; loaded lazily on access.
+    @OneToMany(mappedBy = "currentGym", fetch = FetchType.LAZY)
+    private List<CoachProfile> coaches = new ArrayList<>();
 }

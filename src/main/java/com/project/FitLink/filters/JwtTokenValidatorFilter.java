@@ -41,7 +41,7 @@ public class JwtTokenValidatorFilter extends OncePerRequestFilter {
         } catch (JwtException | IllegalArgumentException ex) {
             log.warn("JWT validation failed for path={}: {}", sanitize(request.getRequestURI()), ex.getMessage(), ex);
             SecurityContextHolder.clearContext();
-            ErrorResponseWriter.write(response, ErrorCode.UNAUTHORIZED, "Invalid or expired JWT token.", request.getRequestURI());
+            ErrorResponseWriter.write(response, ErrorCode.UNAUTHORIZED, "Invalid or expired JWT token. Try to refresh the token", request.getRequestURI());;
             return;
         }
 
