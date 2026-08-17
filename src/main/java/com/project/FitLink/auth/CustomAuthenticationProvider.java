@@ -27,6 +27,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
             if (!passwordEncoder.matches(pwd, userDetails.getPassword())) {
                 throw new BadCredentialsException("Invalid credentials");
             }
+            //TODO: add check on email verification
             return new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
     }
 

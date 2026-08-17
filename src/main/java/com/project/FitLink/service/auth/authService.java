@@ -68,6 +68,7 @@ public class authService {
      * @return A TokenResponse containing the access and refresh tokens.
      * @throws AppException If authentication fails due to invalid credentials.
      */
+    //TODO: Refactor this (reduce second reading query and related get queries)
     public TokenResponse loginProcess(LoginRequest loginRequest) {
         Authentication authentication = new UsernamePasswordAuthenticationToken(
                 loginRequest.getEmail(), loginRequest.getPassword()
@@ -92,6 +93,7 @@ public class authService {
         }
 
         SecurityContextHolder.getContext().setAuthentication(auth);
+        //TODO: use the methode that make the token from the principal instead of the user
         String accessToken  = jwtService.generateAccessToken(user);
         String refreshToken = jwtService.generateRefreshToken(user);
 
