@@ -1,6 +1,6 @@
 package com.project.FitLink.entities.users;
 
-import com.project.FitLink.utils.enums.Roles;
+import com.project.FitLink.utils.enums.user.Roles;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

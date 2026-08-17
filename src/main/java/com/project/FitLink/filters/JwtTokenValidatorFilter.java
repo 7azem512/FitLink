@@ -1,8 +1,8 @@
 package com.project.FitLink.filters;
 
 import com.project.FitLink.exception.ErrorCode;
-import com.project.FitLink.exception.ErrorResponseWriter;
-import com.project.FitLink.service.TokenAuthenticationService;
+import com.project.FitLink.exception.handlers.ErrorResponseWriter;
+import com.project.FitLink.service.auth.TokenAuthenticationService;
 import com.project.FitLink.utils.Constants;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -41,7 +41,7 @@ public class JwtTokenValidatorFilter extends OncePerRequestFilter {
         } catch (JwtException | IllegalArgumentException ex) {
             log.warn("JWT validation failed for path={}: {}", sanitize(request.getRequestURI()), ex.getMessage(), ex);
             SecurityContextHolder.clearContext();
-            ErrorResponseWriter.write(response, ErrorCode.UNAUTHORIZED, "Invalid or expired JWT token.", request.getRequestURI());
+            ErrorResponseWriter.write(response, ErrorCode.UNAUTHORIZED, "Invalid or expired JWT token. Try to refresh the token", request.getRequestURI());;
             return;
         }
 

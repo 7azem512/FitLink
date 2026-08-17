@@ -1,0 +1,124 @@
+package com.project.FitLink.service.auth;
+
+import com.project.FitLink.auth.FitLinkUserDetails;
+import com.project.FitLink.entities.users.UserEntity;
+import com.project.FitLink.utils.Constants;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+@Service
+@Slf4j
+@RequiredArgsConstructor
+public class jwtService {
+
+    private final long accessTokenExpiration = Constants.JWT_ACCESS_TOKEN_EXPIRATION;
+    private final long refreshTokenExpiration = Constants.JWT_REFRESH_TOKEN_EXPIRATION;
+
+    @Value("${application.jwt.secret}")
+    private String JWT_SECRET_DEFAULT_VALUE;
+
+    private SecretKey secretKey;
+
+    public String generateAccessToken() {
+        FitLinkUserDetails user = getCurrentUser();
+        return buildAccessToken(
+                user.getPublicId(),
+                user.getEmail(),
+                user.getUsername(),
+                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(","))
+        );
+    }
+
+    public String generateAccessToken(UserEntity userEntity) {
+        String authorities = userEntity.getRoles().stream()
+                .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
+                .collect(Collectors.joining(","));
+        return buildAccessToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities);
+    }
+
+    private String buildAccessToken(UUID publicId, String email, String username, String authorities) {
+        return Jwts.builder()
+                .issuer("FitLink")
+                .subject("ACCESS Token")
+                .issuedAt(new Date())
+                .expiration(new Date(new Date().getTime() + accessTokenExpiration))
+                .id(UUID.randomUUID().toString())
+                .claim("publicId", publicId.toString())
+                .claim("email", email)
+                .claim("userName", username)
+                .claim("authorities", authorities)
+                .signWith(getSecretKey())
+                .compact();
+    }
+
+    public String generateRefreshToken() {
+        FitLinkUserDetails user = getCurrentUser();
+        return buildRefreshToken(
+                user.getPublicId(),
+                user.getEmail(),
+                user.getUsername(),
+                user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.joining(","))
+        );
+    }
+
+    public String generateRefreshToken(UserEntity userEntity) {
+        String authorities = userEntity.getRoles().stream()
+                .map(userRole -> "ROLE_" + userRole.getRole().getRoleCode().name())
+                .collect(Collectors.joining(","));
+        return buildRefreshToken(userEntity.getPublicId(), userEntity.getEmail(), userEntity.getUserName(), authorities);
+    }
+
+    private String buildRefreshToken(UUID publicId, String email, String username, String authorities) {
+        return Jwts.builder()
+                .issuer("FitLink")
+                .subject("REFRESH Token")
+                .issuedAt(new Date())
+                .expiration(new Date(new Date().getTime() + refreshTokenExpiration))
+                .id(UUID.randomUUID().toString())
+                .claim("publicId", publicId.toString())
+                .claim("email", email)
+                .claim("userName", username)
+                .claim("authorities", authorities)
+                .signWith(getSecretKey())
+                .compact();
+    }
+
+    public Claims extractClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSecretKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    public SecretKey getSecretKey() {
+        if (secretKey == null) {
+            secretKey = Keys.hmacShaKeyFor(JWT_SECRET_DEFAULT_VALUE.getBytes(StandardCharsets.UTF_8));
+        }
+        return secretKey;
+    }
+
+    private FitLinkUserDetails getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null ||
+                !(authentication.getPrincipal() instanceof FitLinkUserDetails userDetails)) {
+            throw new UsernameNotFoundException("No authenticated user found");
+        }
+        return userDetails;
+    }
+}
