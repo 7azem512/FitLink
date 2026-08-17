@@ -1,5 +1,6 @@
 package com.project.FitLink.dto.Auth.role;
 
+import com.project.FitLink.annotation.ValidRoleProfile;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -9,6 +10,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
+@ValidRoleProfile
 public class SelectRoleRequest {
 
     @NotBlank(message = "Role cannot be blank")
