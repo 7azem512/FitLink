@@ -20,6 +20,7 @@ public class TokenResponse {
     @Schema(description = "Display name of the authenticated user", example = "John Doe")
     private String userName;
 
+    //TODO: make roles -> List
     @Schema(description = "Role assigned to the user", example = "ROLE_USER")
     private String role;
 }
