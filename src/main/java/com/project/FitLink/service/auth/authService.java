@@ -99,13 +99,15 @@ public class authService {
 
         log.info("User {} logged in successfully", loginRequest.getEmail());
 
+        List<String> roles = user.getRoles().stream()
+                .map(ur -> "ROLE_" + ur.getRole().getRoleCode().name())
+                .toList();
+
         return TokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .userName(user.getUserName())
-                .role(user.getRoles().stream()
-                        .map(ur -> "ROLE_" + ur.getRole().getRoleCode().name())
-                        .findFirst().orElse(""))
+                .role(roles)
                 .build();
     }
 

@@ -72,7 +72,7 @@ public class OtpService {
                 .accessToken(jwtService.generateAccessToken())
                 .refreshToken(jwtService.generateRefreshToken())
                 .userName(user.getUserName())
-                .role(authorities.get(0).getAuthority())
+                .role(authorities.stream().map(a -> a.getAuthority().toUpperCase()).collect(Collectors.toList()))
                 .build();
     }
 
