@@ -2,6 +2,7 @@ package com.project.FitLink.dto.Auth.login;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import java.util.List;
 
 @Setter
 @Getter
@@ -21,5 +22,5 @@ public class TokenResponse {
     private String userName;
 
     @Schema(description = "Role assigned to the user", example = "ROLE_USER")
-    private String role;
+    private List<String> role;
 }

@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static com.project.FitLink.utils.enums.auth.AuthProvider.GOOGLE;
 
@@ -89,7 +90,7 @@ public class googleAuthService {
                 .accessToken(jwtService.generateAccessToken(user))
                 .refreshToken(jwtService.generateRefreshToken(user))
                 .userName(user.getUserName())
-                .role(authorities.get(0).getAuthority())
+                .role(authorities.stream().map(a -> a.getAuthority().toUpperCase()).collect(Collectors.toList()))
                 .build();
     }
 

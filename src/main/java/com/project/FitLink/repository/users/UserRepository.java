@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<UserEntity,Long> {
+    //TODO: Use entity graph in queries that u will fetch related entities in it
     Optional<UserEntity> findByEmail(String email);
     Optional<UserEntity> findByPublicId(UUID publicId);
     Optional<UserEntity> findByProviderAndProviderId(AuthProvider provider, String providerId);
