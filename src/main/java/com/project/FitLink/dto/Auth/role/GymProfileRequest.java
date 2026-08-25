@@ -21,13 +21,13 @@ public class GymProfileRequest {
     @NotBlank(message = "Gym name is required")
     @Size(min = 3, max = 100)
     @Schema(description = "Display name of the gym", example = "Iron Zone Gym")
-    private String gymName;
+    private String name;
 
     @Schema(description = "Gym logo image")
-    private MultipartFile gymLogo;
+    private MultipartFile logo;
 
-    @Schema(description = "Free-form gym type labels (e.g. Fitness, CrossFit, Yoga)")
-    private List<String> gymTypes;
+    @Schema(description = "Gym type labels (e.g. Fitness, CrossFit, Yoga)")
+    private List<String> types;
 
     @Schema(description = "Year the gym was established", example = "2015")
     private Integer establishedYear;
@@ -43,15 +43,15 @@ public class GymProfileRequest {
 
     @Valid
     @NotNull(message = "Working hours are required")
-    @Schema(description = "Opening/closing times and working days")
+    @Schema(description = "Opening/closing times and working schedule")
     private WorkingHours workingHours;
 
-    @Schema(description = "List of available facilities (e.g. Parking, Lockers, Showers)")
+    @Schema(description = "Available facilities (e.g. Parking, Lockers, Showers)")
     private List<String> facilities;
 
     @Size(max = 255)
     @Schema(description = "Website URL")
-    private String websiteUrl;
+    private String website;
 
     @Getter
     @Setter
@@ -76,7 +76,7 @@ public class GymProfileRequest {
         @Schema(description = "Closing time", example = "21:45")
         private LocalTime closingTime;
 
-        @Schema(description = "Working days preset", example = "EVERYDAY")
-        private WorkingDay workingDays;
+        @Schema(description = "Working schedule preset", example = "EVERYDAY")
+        private WorkingDay schedule;
     }
 }
