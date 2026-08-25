@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -72,6 +73,17 @@ public class GlobalExceptionHandler{
         List<FieldError> fieldErrors = exception.getBindingResult().getFieldErrors();
 
         for(FieldError fieldError : fieldErrors){
+            if (fieldError.contains(TypeMismatchException.class)) {
+                TypeMismatchException typeMismatch = (TypeMismatchException) fieldError.unwrap(TypeMismatchException.class);
+                Class<?> requiredType = typeMismatch.getRequiredType();
+                if (requiredType != null && requiredType.isEnum()) {
+                    String rejectedValue = String.valueOf(typeMismatch.getValue());
+                    String allowedValues = Arrays.toString(requiredType.getEnumConstants());
+                    errors.put(fieldError.getField(),
+                            String.format("Invalid value '%s'. Accepted values are: %s", rejectedValue, allowedValues));
+                    continue;
+                }
+            }
             errors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
         exception.getBindingResult().getGlobalErrors().forEach(error -> {

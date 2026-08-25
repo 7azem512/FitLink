@@ -312,12 +312,12 @@ public class authService {
      */
     private List<String> createGymProfile(UserEntity user, SelectRoleRequest request) {
         GymProfileRequest dto = request.getGymProfile();
-        if (dto == null || dto.getGymName() == null || dto.getGymName().isBlank()) {
+        if (dto == null || dto.getName() == null || dto.getName().isBlank()) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Gym profile data is required");
         }
 
         List<String> uploadedUrls = new ArrayList<>();
-        String logoUrl = uploadIfPresent(dto.getGymLogo(), StorageFolder.GYM_LOGO, uploadedUrls);
+        String logoUrl = uploadIfPresent(dto.getLogo(), StorageFolder.GYM_LOGO, uploadedUrls);
 
         GymProfileRequest.Location loc = dto.getLocation();
         GymProfileRequest.WorkingHours wh = dto.getWorkingHours();
@@ -326,19 +326,19 @@ public class authService {
                 .id(user.getPublicId())
                 .user(user)
                 .logoUrl(logoUrl)
-                .gymName(dto.getGymName())
-                .gymTypes(dto.getGymTypes() != null
-                        ? new HashSet<>(dto.getGymTypes())
+                .gymName(dto.getName())
+                .gymTypes(dto.getTypes() != null
+                        ? new HashSet<>(dto.getTypes())
                         : new HashSet<>())
                 .establishedYear(dto.getEstablishedYear())
                 .description(dto.getDescription())
                 .address(loc != null ? loc.getAddress() : null)
                 .latitude(loc != null ? loc.getLatitude() : null)
                 .longitude(loc != null ? loc.getLongitude() : null)
-                .websiteUrl(dto.getWebsiteUrl())
+                .websiteUrl(dto.getWebsite())
                 .openingTime(wh != null ? wh.getOpeningTime() : null)
                 .closingTime(wh != null ? wh.getClosingTime() : null)
-                .workingDays(wh != null ? wh.getWorkingDays() : null)
+                .workingDays(wh != null ? wh.getSchedule() : null)
                 .facilities(dto.getFacilities() != null
                         ? new ArrayList<>(dto.getFacilities())
                         : new ArrayList<>())
