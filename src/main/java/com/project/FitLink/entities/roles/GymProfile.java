@@ -2,13 +2,11 @@ package com.project.FitLink.entities.roles;
 
 import com.project.FitLink.auditing.AuditEntity;
 import com.project.FitLink.entities.users.UserEntity;
-import com.project.FitLink.utils.enums.gym.GymType;
+import com.project.FitLink.utils.enums.gym.WorkingDay;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-
-import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -42,28 +40,30 @@ public class GymProfile extends AuditEntity {
     @Column(name = "cover_image_url", length = 500)
     private String coverImageUrl;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "gym_type", length = 30)
-    private GymType gymType;
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "gym_types",
+            joinColumns = @JoinColumn(name = "gym_profile_id")
+    )
+    @Column(name = "gym_type", length = 50)
+    private Set<String> gymTypes = new HashSet<>();
 
-    @Column(name = "establish_year")
-    private Integer establishYear;
+    @Column(name = "established_year")
+    private Integer establishedYear;
 
     @Lob
     @Column(name = "description")
     private String description;
 
-    @Column(name = "country", length = 60)
-    private String country;
+    @Size(max = 500)
+    @Column(name = "address", length = 500)
+    private String address;
 
-    @Column(name = "city", length = 60)
-    private String city;
+    @Column(name = "latitude")
+    private Double latitude;
 
-    @Column(name = "area", length = 80)
-    private String area;
-
-    @Column(name = "google_maps_url", length = 500)
-    private String googleMapsUrl;
+    @Column(name = "longitude")
+    private Double longitude;
 
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
@@ -80,13 +80,9 @@ public class GymProfile extends AuditEntity {
     @Column(name = "closing_time")
     private LocalTime closingTime;
 
-    @ElementCollection(fetch = FetchType.LAZY)
-    @CollectionTable(
-            name = "gym_working_days",
-            joinColumns = @JoinColumn(name = "gym_profile_id")
-    )
-    @Column(name = "working_day", length = 10)
-    private Set<DayOfWeek> workingDays = new HashSet<>();
+    @Enumerated(EnumType.STRING)
+    @Column(name = "working_days", length = 30)
+    private WorkingDay workingDays;
 
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(

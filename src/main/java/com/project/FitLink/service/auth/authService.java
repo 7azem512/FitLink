@@ -317,39 +317,31 @@ public class authService {
         }
 
         List<String> uploadedUrls = new ArrayList<>();
-        String logoUrl = uploadIfPresent(dto.getLogo(), StorageFolder.GYM_LOGO, uploadedUrls);
-        String coverUrl = uploadIfPresent(dto.getCover(), StorageFolder.GYM_COVER, uploadedUrls);
-        List<String> galleryUrls = storageService.uploadAll(dto.getGallery(), StorageFolder.GYM_GALLERY);
-        uploadedUrls.addAll(galleryUrls);
+        String logoUrl = uploadIfPresent(dto.getGymLogo(), StorageFolder.GYM_LOGO, uploadedUrls);
+
+        GymProfileRequest.Location loc = dto.getLocation();
+        GymProfileRequest.WorkingHours wh = dto.getWorkingHours();
 
         GymProfile profile = GymProfile.builder()
                 .id(user.getPublicId())
                 .user(user)
                 .logoUrl(logoUrl)
                 .gymName(dto.getGymName())
-                .coverImageUrl(coverUrl)
-                .gymType(dto.getGymType())
-                .establishYear(dto.getEstablishYear())
-                .description(dto.getDescription())
-                .country(dto.getCountry())
-                .city(dto.getCity())
-                .area(dto.getArea())
-                .googleMapsUrl(dto.getGoogleMapsUrl())
-                .phoneNumber(dto.getPhoneNumber())
-                .whatsapp(dto.getWhatsapp())
-                .websiteUrl(dto.getWebsiteUrl())
-                .openingTime(dto.getOpeningTime())
-                .closingTime(dto.getClosingTime())
-                .workingDays(dto.getWorkingDays() != null
-                        ? new HashSet<>(dto.getWorkingDays())
+                .gymTypes(dto.getGymTypes() != null
+                        ? new HashSet<>(dto.getGymTypes())
                         : new HashSet<>())
+                .establishedYear(dto.getEstablishedYear())
+                .description(dto.getDescription())
+                .address(loc != null ? loc.getAddress() : null)
+                .latitude(loc != null ? loc.getLatitude() : null)
+                .longitude(loc != null ? loc.getLongitude() : null)
+                .websiteUrl(dto.getWebsiteUrl())
+                .openingTime(wh != null ? wh.getOpeningTime() : null)
+                .closingTime(wh != null ? wh.getClosingTime() : null)
+                .workingDays(wh != null ? wh.getWorkingDays() : null)
                 .facilities(dto.getFacilities() != null
                         ? new ArrayList<>(dto.getFacilities())
                         : new ArrayList<>())
-                .additionalImages(new ArrayList<>(galleryUrls))
-                .commercialRegistration(dto.getCommercialRegistration())
-                .taxCard(dto.getTaxCard())
-                .ownerId(dto.getOwnerId())
                 .build();
         gymProfileRepository.save(profile);
 

@@ -1,76 +1,82 @@
 package com.project.FitLink.dto.Auth.role;
 
-import com.project.FitLink.utils.enums.gym.GymType;
+import com.project.FitLink.utils.enums.gym.WorkingDay;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.List;
-import java.util.Set;
 
 @Getter
 @Setter
 @Schema(description = "Profile data required when selecting the GYM role")
 public class GymProfileRequest {
 
-    // Uploaded as file parts within the same multipart request; stored under GYM_LOGO / GYM_COVER / GYM_GALLERY.
-    private MultipartFile logo;
-
-    private MultipartFile cover;
-
     @NotBlank(message = "Gym name is required")
     @Size(min = 3, max = 100)
+    @Schema(description = "Display name of the gym", example = "Iron Zone Gym")
     private String gymName;
 
-    private GymType gymType;
+    @Schema(description = "Gym logo image")
+    private MultipartFile gymLogo;
 
-    private Integer establishYear;
+    @Schema(description = "Free-form gym type labels (e.g. Fitness, CrossFit, Yoga)")
+    private List<String> gymTypes;
 
+    @Schema(description = "Year the gym was established", example = "2015")
+    private Integer establishedYear;
+
+    @Size(max = 2000)
+    @Schema(description = "Brief description of the gym")
     private String description;
 
-    @Size(max = 60)
-    private String country;
+    @Valid
+    @NotNull(message = "Location is required")
+    @Schema(description = "Physical location of the gym")
+    private Location location;
 
-    @Size(max = 60)
-    private String city;
+    @Valid
+    @NotNull(message = "Working hours are required")
+    @Schema(description = "Opening/closing times and working days")
+    private WorkingHours workingHours;
 
-    @Size(max = 80)
-    private String area;
-
-    @Size(max = 500)
-    private String googleMapsUrl;
-
-    @Size(max = 20)
-    private String phoneNumber;
-
-    @Size(max = 20)
-    private String whatsapp;
-
-    @Size(max = 255)
-    private String websiteUrl;
-
-    private LocalTime openingTime;
-
-    private LocalTime closingTime;
-
-    private Set<DayOfWeek> workingDays;
-
+    @Schema(description = "List of available facilities (e.g. Parking, Lockers, Showers)")
     private List<String> facilities;
 
-    @Size(max = 100)
-    private String commercialRegistration;
+    @Size(max = 255)
+    @Schema(description = "Website URL")
+    private String websiteUrl;
 
-    @Size(max = 100)
-    private String taxCard;
+    @Getter
+    @Setter
+    public static class Location {
+        @Size(max = 500)
+        @Schema(description = "Full address string", example = "123 Main St, Cairo, Egypt")
+        private String address;
 
-    @Size(max = 100)
-    private String ownerId;
+        @Schema(description = "Latitude coordinate", example = "29.9868")
+        private Double latitude;
 
-    // Multiple file parts with the same name, stored under GYM_GALLERY (gym_additional_images).
-    private List<MultipartFile> gallery;
+        @Schema(description = "Longitude coordinate", example = "31.3018")
+        private Double longitude;
+    }
+
+    @Getter
+    @Setter
+    public static class WorkingHours {
+        @Schema(description = "Opening time", example = "09:45")
+        private LocalTime openingTime;
+
+        @Schema(description = "Closing time", example = "21:45")
+        private LocalTime closingTime;
+
+        @Schema(description = "Working days preset", example = "EVERYDAY")
+        private WorkingDay workingDays;
+    }
 }
