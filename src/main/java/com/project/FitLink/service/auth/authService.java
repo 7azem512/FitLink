@@ -385,6 +385,87 @@ public class authService {
     }
 
     /**
+     * Deletes a profile and its associated S3 files, and removes the role assignment.
+     * If deleting a GYM profile, coaches linked to it are unlinked first.
+     */
+    @Transactional
+    public void deleteProfile(Roles roleType) {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (!(principal instanceof FitLinkUserDetails currentUser)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED, "Invalid authentication");
+        }
+
+        UserEntity user = userRepository.findByPublicId(currentUser.getPublicId())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND, "User not found"));
+
+        switch (roleType) {
+            case GYM -> deleteGymProfile(user);
+            case COACH -> deleteCoachProfile(user);
+            case TRAINEE -> deleteTraineeProfile(user);
+            default -> throw new AppException(ErrorCode.VALIDATION_ERROR, "Cannot delete role: " + roleType);
+        }
+
+        userRoleRepository.findByUserAndRole_RoleCode(user, roleType)
+                .ifPresent(userRoleRepository::delete);
+
+        // If user has no remaining profile roles, assign UNASSIGNED back
+        boolean hasAnyProfileRole = userRoleRepository.findByUser(user).stream()
+                .anyMatch(ur -> ur.getRole().getRoleCode() == Roles.TRAINEE
+                        || ur.getRole().getRoleCode() == Roles.COACH
+                        || ur.getRole().getRoleCode() == Roles.GYM);
+
+        if (!hasAnyProfileRole) {
+            Role unassignedRoleEntity = roleRepository.findByRoleCode(Roles.UNASSIGNED)
+                    .orElseThrow(() -> new AppException(ErrorCode.INVALID_ROLE, "UNASSIGNED role not found"));
+            UserRole unassigned = UserRole.builder()
+                    .user(user)
+                    .role(unassignedRoleEntity)
+                    .build();
+            userRoleRepository.save(unassigned);
+        }
+
+        log.info("Profile deleted for user: {} role: {}", user.getEmail(), roleType);
+    }
+
+    private void deleteGymProfile(UserEntity user) {
+        GymProfile profile = gymProfileRepository.findById(user.getPublicId())
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND, "Gym profile not found"));
+
+        // Unlink coaches that reference this gym
+        List<CoachProfile> linkedCoaches = coachProfileRepository.findByCurrentGymId(profile.getId());
+        for (CoachProfile coach : linkedCoaches) {
+            coach.setCurrentGym(null);
+            coachProfileRepository.save(coach);
+        }
+
+        // Delete S3 files
+        storageService.deleteByUrl(profile.getLogoUrl());
+        storageService.deleteByUrl(profile.getCoverImageUrl());
+        profile.getAdditionalImages().forEach(storageService::deleteByUrl);
+
+        gymProfileRepository.delete(profile);
+    }
+
+    private void deleteCoachProfile(UserEntity user) {
+        CoachProfile profile = coachProfileRepository.findById(user.getPublicId())
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND, "Coach profile not found"));
+
+        storageService.deleteByUrl(profile.getCvUrl());
+        storageService.deleteByUrl(profile.getIntroVideoUrl());
+
+        coachProfileRepository.delete(profile);
+    }
+
+    private void deleteTraineeProfile(UserEntity user) {
+        TraineeProfile profile = traineeProfileRepository.findById(user.getPublicId())
+                .orElseThrow(() -> new AppException(ErrorCode.PROFILE_NOT_FOUND, "Trainee profile not found"));
+
+        storageService.deleteByUrl(profile.getProfileImageUrl());
+
+        traineeProfileRepository.delete(profile);
+    }
+
+    /**
      * Uploads a file only when it was actually provided; returns the public URL or null.
      * Tracks every uploaded URL so {@code assignRole} can remove them if the transaction fails.
      */
